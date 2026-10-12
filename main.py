@@ -132,7 +132,7 @@ pb_predicates = (
 pb_predicates.save_prompt(filename="custom_template/custom_predicates_prompt.md")
 custom_predicates_template = load_custom_template(filepath="custom_template/custom_predicates_prompt.md")
 
-# carico invece il template di default per generare le azioni
+# creo il templace custom per generare le azioni
 pb_actions = (
     PromptBuilder()
     .set_role("You are an expert PDDL Generator Agent. Your role is to model PDDL domain actions (:actions).")
