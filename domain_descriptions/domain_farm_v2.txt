@@ -1,0 +1,5 @@
+Ci sono K1 trattori per arare, K2 trattori per seminare, K3 contadini, N campi, un certo numero di aratri e seminatori. Un trattore per l'aratura potrebbe essere adatto anche per la semina e viceversa. Ogni campo deve essere prima arato, poi seminato ed infine innaffiato.
+Per innaffiare e' sufficiente che una contadino si trovi sul campo, ad es: se vale  (at contadino1 campo5), allora il campo 5 puo' essere innaffiato (ammesso che prima sia stato seminato - condizione NECESSARIA).
+NOTA: un trattore non si sposta da solo: il contadino deve essere a bordo del trattore. Ovviamente un contadino deve anche poter scendere da un trattore....
+ 
+

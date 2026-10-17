@@ -12,7 +12,11 @@ from l2p.utils.pddl_prompt import load_custom_template, load_default_template # 
 import sys # per far terminare prima il programma in caso di errori
 import time # calcola tempo di esecuzione del programma
 import questionary # genera un menu a scelta
+from datetime import datetime # per generare timestamp automatici nei file
 from dotenv import load_dotenv # per caricare le variabili d'ambiente
+
+# per recuperare il percorso del file
+from pathlib import Path
 
 # Caricamento delle variabili d'ambiente dal file .env
 load_dotenv()
@@ -69,6 +73,19 @@ llm = UnifiedLLM(
     model=response,
     config_path="my_llm.yaml"
 )
+
+# -------------------------------------------------------------
+# SCELTA MODALITÀ DI NAMING DEL FILE DOMAIN.PDDL
+# -------------------------------------------------------------
+naming_mode = questionary.select(
+    "Come vuoi gestire il nome del file PDDL del dominio in salvataggio?",
+    choices=[
+        "Manuale (scelgo io il nome da terminale)",
+        "Automatico (genera nome con timestamp: domain_YYYYMMDD_HHMMSS.pddl)"
+    ],
+    instruction=""
+).ask()
+
 
 print("\nSalvataggio template di default")
 # Costruzione del prompt basato sul template l2p + regole personalizzate per gli errori specifici riscontrati
@@ -191,96 +208,23 @@ domain_builder = DomainBuilder()
 # Istanza del FeedbackBuilder
 feedback_builder = FeedbackBuilder()
 
-domain_desc = """
+# ------------------------------------------
+# SELEZIONE DEL DOMINIO
+# ------------------------------------------
+nome_file_dominio = "domain_farm_v1.txt"
 
-Ci sono K1 trattori per arare, K2 trattori per seminare, K3 contadini, N campi, un certo numero di aratri e seminatori. Un trattore per l'aratura potrebbe essere adatto anche per la semina e viceversa. Ogni campo deve essere prima arato, poi seminato ed infine innaffiato.
-Per innaffiare e' sufficiente che una contadino si trovi sul campo, ad es: se vale  (at contadino1 campo5), allora il campo 5 puo' essere innaffiato (ammesso che prima sia stato seminato - condizione NECESSARIA).
-NOTA: un trattore non si sposta da solo: il contadino deve essere a bordo del trattore. Ovviamente un contadino deve anche poter scendere da un trattore....
- 
-File problema di test:
+# Percorso completo al file di testo
+file_path = Path("domain_descriptions") / nome_file_dominio
 
-(define (problem Dieci-Campi)
-  (:domain CAMPI)
-  (:objects traA1 traA2 traS1 traS2 aratro1 aratro2 seminatore1 seminatore2
-     contadino1 contadino2
-     cam1 cam2 cam3 cam4 cam5
-     cam6 cam7 cam8 cam9 cam10)
-  (:init
-   (contadino contadino1)
-   (contadino contadino2)
-   (CAMPO cam1)
-   (CAMPO cam2)
-   (CAMPO cam3)
-   (CAMPO cam4)
-   (CAMPO cam5)
-   (CAMPO cam6)
-   (CAMPO cam7)
-   (CAMPO cam8)
-   (CAMPO cam9)
-   (CAMPO cam10)
-   (TRA traA1)
-   (TRA traA2)
-   (TRA traS1)
-   (TRA traS2)
-   (TRA-ARA traA1)
-   (TRA-ARA traA2)
-   (TRA-SEMINA traS1)
-   (TRA-SEMINA traS2)
-   (ARATRO aratro1)
-   (ARATRO aratro2)
-   (SEMINATORE seminatore1)
-   (SEMINATORE seminatore2)
-   (CONNESSO cam1 cam2)
-   (CONNESSO cam2 cam1)
-   (CONNESSO cam2 cam3)
-   (CONNESSO cam3 cam2)
-   (CONNESSO cam3 cam4)
-   (CONNESSO cam4 cam3)
-   (CONNESSO cam4 cam5)
-   (CONNESSO cam5 cam4)
-   (CONNESSO cam5 cam2)
-   (CONNESSO cam2 cam5)
-   (CONNESSO cam5 cam6)
-   (CONNESSO cam6 cam5)
-   (CONNESSO cam6 cam7)
-   (CONNESSO cam7 cam6)
-   (CONNESSO cam7 cam8)
-   (CONNESSO cam8 cam7)
-   (CONNESSO cam8 cam1)
-   (CONNESSO cam1 cam8)
-   (CONNESSO cam8 cam9)
-   (CONNESSO cam9 cam8)
-   (CONNESSO cam9 cam10)
-   (CONNESSO cam10 cam9)
-   (CONNESSO cam5 cam1)
-   (CONNESSO cam1 cam5)
-   (at traA1 cam1);; dynamic predicates
-   (at traA2 cam5)
-   (at traS1 cam1)
-   (at traS2 cam4)
-   (at aratro1 cam3)
-   (at aratro2 cam8)
-   (at seminatore1 cam2)
-   (at seminatore2 cam6)
-   (at contadino1 cam1)
-   (at contadino2 cam5)
-   )
- 
-  (:goal (and
-   (innaffiato cam6)
-   (innaffiato cam7)
-   (innaffiato cam8)
-   (innaffiato cam9)
-   (innaffiato cam10)
-   (seminato cam1)
-   (seminato cam1)
-   (seminato cam2)
-   (seminato cam3)
-   (seminato cam4)
-   (seminato cam5)))
-  )
+# Lettura automatica del file di testo
+try:
+    with open(file_path, "r", encoding="utf-8") as f:
+        domain_desc = f.read()
+    print(f" [OK] Testo del dominio caricato correttamente da: {file_path}")
+except FileNotFoundError:
+    print(f" [ERRORE] Il file '{file_path}' non è stato trovato. Verifica il nome.")
+    domain_desc = ""
 
-"""
 
 # inizio da qui a contare il tempo impiegato dall'LLM per risolvere il problema.
 start_time = time.time()
@@ -448,11 +392,30 @@ if domain_result.valid:
     print("--- ANTEPRIMA DEL FILE DOMAIN.PDDL ---\n")
     print(domain_pddl_content)
 
-    # --- SALVATAGGIO DEL FILE SU DISCO ---
-    filename_output = "domain.pddl"
+    domains_dir = Path("domains")
+    domains_dir.mkdir(parents=True, exist_ok=True)  # Crea la cartella se non esiste
+
+    # Controllo in base alla scelta del flag iniziale
+    if "Manuale" in naming_mode:
+        domain_filename = questionary.text(
+            "Inserisci il nome del file PDDL del dominio:",
+            default="domain_farm.pddl"
+        ).ask()
+        
+        # Controllo di sicurezza sull'estensione
+        if not domain_filename.endswith(".pddl"):
+            domain_filename += ".pddl"
+    else:
+        # Generazione automatica con timestamp (es. domain_20261015_213000.pddl)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        domain_filename = f"domain_{timestamp}.pddl"
+
+    filename_output = domains_dir / domain_filename
+
     with open(filename_output, "w", encoding="utf-8") as f:
         f.write(domain_pddl_content)
-    print(f"\n[SALVATAGGIO] File scritto correttamente come: '{filename_output}' nella cartella di lavoro.")
+        
+    print(f"\n[SALVATAGGIO] File scritto correttamente come: '{filename_output}'")
 else:
     termina_programma(f"\n[FATAL] L'LLM ha fallito la generazione dopo {MAX_ATTEMPTS} tentativi. Ultimi errori: {domain_result.errors}")
 
