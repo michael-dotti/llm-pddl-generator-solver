@@ -211,7 +211,7 @@ feedback_builder = FeedbackBuilder()
 # ------------------------------------------
 # SELEZIONE DEL DOMINIO
 # ------------------------------------------
-nome_file_dominio = "domain_farm_v1.txt"
+nome_file_dominio = "domain_farm_v2.txt"
 
 # Percorso completo al file di testo
 file_path = Path("domain_descriptions") / nome_file_dominio
@@ -398,7 +398,7 @@ if domain_result.valid:
     # Controllo in base alla scelta del flag iniziale
     if "Manuale" in naming_mode:
         domain_filename = questionary.text(
-            "Inserisci il nome del file PDDL del dominio:",
+            "/nInserisci il nome del file PDDL del dominio:",
             default="domain_farm.pddl"
         ).ask()
         
