@@ -211,7 +211,7 @@ feedback_builder = FeedbackBuilder()
 # ------------------------------------------
 # SELEZIONE DEL DOMINIO
 # ------------------------------------------
-nome_file_dominio = "domain_farm_v2.txt"
+nome_file_dominio = "domain_farm_v3.txt"
 
 # Percorso completo al file di testo
 file_path = Path("domain_descriptions") / nome_file_dominio
