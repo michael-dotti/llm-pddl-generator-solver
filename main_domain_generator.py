@@ -70,9 +70,9 @@ file_path = Path("domain_descriptions") / current_domain_file
 try:
     with open(file_path, "r", encoding="utf-8") as f:
         domain_desc = f.read()
-    print(f" [OK] Testo del dominio caricato correttamente da: {file_path}")
+    print(f" \n[OK] Testo del dominio caricato correttamente da: {file_path}\n")
 except FileNotFoundError:
-    print(f" [ERRORE] Il file '{file_path}' non è stato trovato. Verifica il nome.")
+    print(f" \n[ERRORE] Il file '{file_path}' non è stato trovato. Verifica il nome.")
     domain_desc = ""
 
 # -------------------------------------------------------------
