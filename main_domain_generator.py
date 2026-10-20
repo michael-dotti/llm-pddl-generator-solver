@@ -56,6 +56,43 @@ PROVIDERS = {
     GEMINI_38_FLASH: "gemini",
 }
 
+
+
+# ==========================================
+# 1. SELEZIONE DEL DOMINIO
+# ==========================================
+current_domain_file = "domain_farm_v3.txt"
+
+# Percorso completo al file di testo
+file_path = Path("domain_descriptions") / current_domain_file
+
+# Lettura automatica del file di testo
+try:
+    with open(file_path, "r", encoding="utf-8") as f:
+        domain_desc = f.read()
+    print(f" [OK] Testo del dominio caricato correttamente da: {file_path}")
+except FileNotFoundError:
+    print(f" [ERRORE] Il file '{file_path}' non è stato trovato. Verifica il nome.")
+    domain_desc = ""
+
+# -------------------------------------------------------------
+# SCELTA MODALITÀ DI NAMING DEL FILE DOMAIN.PDDL
+# -------------------------------------------------------------
+naming_mode = questionary.select(
+    "Come vuoi gestire il nome del file PDDL del dominio in salvataggio?",
+    choices=[
+        "Manuale (scelgo io il nome da terminale)",
+        "Automatico (genera nome con timestamp: domain_YYYYMMDD_HHMMSS.pddl)"
+    ],
+    instruction=""
+).ask()
+
+
+
+# ==========================================
+# 2. SELEZIONE DEL'LLM
+# ==========================================
+  
 # Menu interattivo sul terminale per la selezione del modello LLM
 response = questionary.select(
     "Quale intelligenza artificiale vuoi utilizzare?",
@@ -74,29 +111,36 @@ llm = UnifiedLLM(
     config_path="my_llm.yaml"
 )
 
-# -------------------------------------------------------------
-# SCELTA MODALITÀ DI NAMING DEL FILE DOMAIN.PDDL
-# -------------------------------------------------------------
-naming_mode = questionary.select(
-    "Come vuoi gestire il nome del file PDDL del dominio in salvataggio?",
-    choices=[
-        "Manuale (scelgo io il nome da terminale)",
-        "Automatico (genera nome con timestamp: domain_YYYYMMDD_HHMMSS.pddl)"
-    ],
-    instruction=""
-).ask()
 
 
-print("\nSalvataggio template di default")
-# Costruzione del prompt basato sul template l2p + regole personalizzate per gli errori specifici riscontrati
-p_types = (
+# ======================================================
+# 3. DEFINIZIONE PROMPT BUILDER: TIPI, PREDICATI E AZIONI
+# ======================================================
+print("\nSalvataggio template")
+
+# Costruzione dei prompt basandosi sul template di l2p + regole personalizzate per gli errori specifici riscontrati
+
+# ------------------
+# TIPI
+# ------------------
+# 1. Configurazione base (ruolo, formato e regole generali)
+prompt_types = (
     PromptBuilder()
     .set_role("You are an expert PDDL Generator Agent. Your role is to model PDDL domain types (:types).")
     .set_format("Wrap a VALID JSON ARRAY inside the <types> ... </types> XML tags.")
-    .add_rule("CRITICAL LANGUAGE RULE: All type names MUST be written strictly in ITALIAN to match the problem file objects.")
+    .add_rule("CRITICAL LANGUAGE RULE: All type names MUST be written strictly in ITALIAN")
     .add_rule("CRITICAL: Do NOT create inner XML tags like <type>...</type>.")
     .add_rule("CRITICAL: The content inside <types> MUST be ONLY a raw JSON array [ ... ].")
-    .add_rule("CRITICAL PDDL RULE: Do NOT include 'object' as a type. 'object' is a reserved PDDL keyword and is implicit. Start your hierarchy directly from user types (parent: 'object').")
+)
+
+# 2. Regola opzionale/condizionale: compatibilità con il file di problema 
+# (attivata solo se il dominio in uso include frammenti di problem.pddl)
+if current_domain_file == "domain_farm_1" :
+    prompt_types = prompt_types.add_rule("The type name must match the problem file objects")
+
+# 3. Specifiche di output, vincoli semantici strutturali e task finale
+# Inseriti qui i vincoli più importanti per evitare il "Bias di recenza"
+prompt_types = (prompt_types.add_rule("CRITICAL PDDL RULE: Do NOT include 'object' as a type. 'object' is a reserved PDDL keyword and is implicit. Start your hierarchy directly from user types (parent: 'object').")
     .add_rule("""EXACT OUTPUT FORMAT REQUIRED:
         <types>
         [
@@ -105,23 +149,35 @@ p_types = (
         ]
         </types>""")
     .add_rule("Do NOT reuse type names as predicate names.")
-    .set_task("Please process the domain description provided.")
-)
+    .set_task("Please process the domain description provided."))
 
 # carico il template personalizzato per i tipi
-p_types.save_prompt(filename="custom_template/custom_types_prompt.md")
+prompt_types.save_prompt(filename="custom_template/custom_types_prompt.md")
 custom_prompt_types = load_custom_template(filepath="custom_template/custom_types_prompt.md")
 
-# Costruzione del prompt per i PREDICATI
-pb_predicates = (
+
+# ------------------
+# PREDICATI
+# ------------------
+# 1. Configurazione base
+prompt_predicates = (
     PromptBuilder()
     .set_role("You are an expert PDDL Generator Agent. Your role is to model PDDL domain predicates (:predicates).")
     .set_format("Wrap a VALID JSON ARRAY inside the <predicates> ... </predicates> XML tags.")
     .add_rule("CRITICAL: Do NOT create inner XML tags like <predicate>...</predicate>.")
     .add_rule("CRITICAL: The content inside <predicates> MUST be ONLY a raw JSON array [ ... ]. Do not use markdown syntax block like ```json.")
     .add_rule("CRITICAL LANGUAGE RULE: All predicate names, descriptions, and type references MUST be strictly in ITALIAN.")
-    .add_rule("CRITICAL COMPATIBILITY RULE: Carefully read the Problem file snippet included in the description. Ensure your predicates match the entities and initial states provided (e.g., how tools or tractor types are defined).") # 
-    .add_rule("""EXACT OUTPUT FORMAT REQUIRED:
+)
+
+# 2. Regola opzionale/condizionale: compatibilità con il file di problema 
+if current_domain_file == "domain_farm_1" :
+    prompt_predicates = prompt_predicates.add_rule(
+        "CRITICAL COMPATIBILITY RULE: Carefully read the Problem file snippet included in the description. "
+        "Ensure your predicates match the entities and initial states provided (e.g., how tools or tractor types are defined)."
+    )
+
+# 3. Specifiche di output, vincoli semantici strutturali e task finale
+prompt_predicates = ( prompt_predicates.add_rule("""EXACT OUTPUT FORMAT REQUIRED:
 <predicates>
 [
   {
@@ -146,17 +202,30 @@ pb_predicates = (
     .set_task("Extract the necessary predicates for the domain.")
 )
 
-pb_predicates.save_prompt(filename="custom_template/custom_predicates_prompt.md")
+prompt_predicates.save_prompt(filename="custom_template/custom_predicates_prompt.md")
 custom_predicates_template = load_custom_template(filepath="custom_template/custom_predicates_prompt.md")
 
-# creo il templace custom per generare le azioni
-pb_actions = (
+# ------------------
+# AZIONI
+# ------------------
+# 1. Configurazione base
+prompt_actions = (
     PromptBuilder()
     .set_role("You are an expert PDDL Generator Agent. Your role is to model PDDL domain actions (:actions).")
     .set_format("Wrap a VALID JSON ARRAY inside the <actions> ... </actions> XML tags.")
     .add_rule("CRITICAL: The content inside <actions> MUST be ONLY a raw JSON array [ ... ] containing action objects, NOT raw PDDL code.")
     .add_rule("CRITICAL LANGUAGE RULE: All action names, parameters, descriptions, and type constraints MUST be strictly in ITALIAN.")
     .add_rule("CRITICAL NAMING RULE: Action names must be clean, grammatically correct Italian verbs/phrases. Do NOT create distorted words or duplicate syllables like 'arara-campo' or 'depona-'.")
+    )
+
+# 2. Regola opzionale/condizionale: compatibilità con il file di problema
+if current_domain_file == "domain_farm_1" :
+    prompt_actions = prompt_actions.add_rule("CRITICAL COMPATIBILITY: Ensure action parameters and types strictly match the objects and initial state definitions from the Problem file snippet.")
+
+# 3. Specifiche di output, vincoli semantici strutturali e task finale 
+prompt_actions = ( prompt_actions
+    .add_rule("CRITICAL RULE FOR DRIVING (guida-trattore): When a farmer is `a-bordo` of a tractor and drives it, ONLY the tractor changes its position. Do NOT add an independent `at` effect for the farmer at the destination, because they move implicitly while `a-bordo`.")
+    .add_rule("CRITICAL EFFICIENCY RULE: Actions MUST have a MAXIMUM of 3 parameters. Avoid actions with 4 or more parameters. If an operation involves multiple elements, break it down or design stateless intermediate checks instead of cramming everything into a single action parameters list.")
     .add_rule("""EXACT JSON STRUCTURE REQUIRED PER ACTION:
     {
         "name": "action-name",
@@ -173,16 +242,14 @@ pb_actions = (
         },
         "desc": "Description of the action"
     }""")
-    .add_rule("CRITICAL RULE FOR DRIVING (guida-trattore): When a farmer is `a-bordo` of a tractor and drives it, ONLY the tractor changes its position. Do NOT add an independent `at` effect for the farmer at the destination, because they move implicitly while `a-bordo`.")
-    .add_rule("CRITICAL COMPATIBILITY: Ensure action parameters and types strictly match the objects and initial state definitions from the Problem file snippet.")
     .set_task("Extract the necessary actions for the domain in JSON format.")
 )
 
-pb_actions.save_prompt(filename="custom_template/custom_actions_prompt.md")
+prompt_actions.save_prompt(filename="custom_template/custom_actions_prompt.md")
 custom_actions_template = load_custom_template(filepath="custom_template/custom_actions_prompt.md")
 
 # Costruzione del prompt per la REVISIONE (FeedbackBuilder)
-pb_revise = (
+prompt_revise = (
     PromptBuilder()
     .set_role("You are an expert PDDL Revision Agent. Your job is to fix failed PDDL component generations based on diagnostic feedback.")
     .set_format("You MUST output the components wrapped in their exact XML tags.")
@@ -194,13 +261,13 @@ pb_revise = (
     .set_task("Revise the following PDDL component(s) based on the diagnostic feedback.\n{context}")
 )
 
-pb_revise.save_prompt(filename="custom_template/custom_revise_prompt.md")
+prompt_revise.save_prompt(filename="custom_template/custom_revise_prompt.md")
 custom_revise_template = load_custom_template(filepath="custom_template/custom_revise_prompt.md")
 
-#-----------------------------------------------------
-# INIZIO CREAZIONE DOMAIN.PDDL
-#-----------------------------------------------------
-print("\n\nInizio Generazione Domain PDDL")
+# ============================================================
+# 1. GENERAZIONE INIZIALE DEI COMPONENT DEL FILE DOMAIN.PDDL
+# ============================================================
+print("\n\n[INFO] Inizio Generazione dei componenti del Domain PDDL (Tipi, Predicati, Azioni)")
 # istanzio le classi necessarie
 # istanza del DomainBuilder: classe che permette di creare a partire da una descrizione in linguaggio umano il dominio del problema PDDL
 domain_builder = DomainBuilder()
@@ -208,31 +275,9 @@ domain_builder = DomainBuilder()
 # Istanza del FeedbackBuilder
 feedback_builder = FeedbackBuilder()
 
-# ------------------------------------------
-# SELEZIONE DEL DOMINIO
-# ------------------------------------------
-nome_file_dominio = "domain_farm_v3.txt"
-
-# Percorso completo al file di testo
-file_path = Path("domain_descriptions") / nome_file_dominio
-
-# Lettura automatica del file di testo
-try:
-    with open(file_path, "r", encoding="utf-8") as f:
-        domain_desc = f.read()
-    print(f" [OK] Testo del dominio caricato correttamente da: {file_path}")
-except FileNotFoundError:
-    print(f" [ERRORE] Il file '{file_path}' non è stato trovato. Verifica il nome.")
-    domain_desc = ""
-
 
 # inizio da qui a contare il tempo impiegato dall'LLM per risolvere il problema.
 start_time = time.time()
-
-# ============================================================
-# 1. GENERAZIONE INIZIALE DEI COMPONENT DEL FILE DOMAIN.PDDL
-# ============================================================
-print("[INFO] Generazione iniziale dei componenti (Tipi, Predicati, Azioni)...")
 
 # Tipi
 try:
