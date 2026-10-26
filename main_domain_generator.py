@@ -1,5 +1,5 @@
 # Moduli fondamentali per la gestione di LLM e PDDL
-from l2p import DomainBuilder, UnifiedLLM, DomainValidator # fondamentali per generare un file domain.pddl e rilevare evenuali errori
+from l2p import DomainBuilder, UnifiedLLM, OPENAI, DomainValidator # fondamentali per generare un file domain.pddl e rilevare evenuali errori
 from l2p.feedback_builder import FeedbackBuilder # per correggere eventuali errori nel dominio
 from l2p.prompt_builder import PromptBuilder # per aiutare LLM nel comprendere come eseguire correttamente il suo compito
 
@@ -18,45 +18,66 @@ from dotenv import load_dotenv # per caricare le variabili d'ambiente
 # per recuperare il percorso del file
 from pathlib import Path
 
+# Importo le classi wrapper per utilizzare gli llm in cloud con l2p
+from WrapperClass.OpenRouterLLMWrapper import OpenRouterLLMWrapper
+
+
 # Caricamento delle variabili d'ambiente dal file .env
 load_dotenv()
 
-# Costanti dell'applicazione
+# COSTANTI DELL'APPLICAZIONE
 DOMAIN_NAME = "CAMPI"
 MAX_ATTEMPTS = 5
+PROVIDERS_NAME = ["Google AI Studio", "OpenRouter", "Locale (Ollama)"]
+
 # Modelli in locale
 QWEN_NAME = "qwen2.5-coder:7b"
 CODE_LAMA = "codellama:latest"
 CODE_GEMMA = "codegemma:latest"
 MISTRAL_ORCA = "mistral-openorca:7b"
-ORNITH = "ornith-1.5:9b"
 COGITO = "cogito:8b"
-# Modelli in cloud
+LOCAL_MODELS = [QWEN_NAME, CODE_LAMA, CODE_GEMMA, MISTRAL_ORCA, COGITO]
+
+# Google Ai Studio
 GEMINI_3_FLASH  = "gemini-3-flash-preview"
-GEMINI_25_LITE = "gemini-2.5-flash-lite"
+GEMINI_25_LITE  = "gemini-2.5-flash-lite"
 GEMINI_31_LITE  = "gemini-3.1-flash-lite"
 GEMINI_35_LITE  = "gemini-3.5-flash-lite"
 GEMINI_38_FLASH = "gemini-3.8-flash"
+GEMINI_MODELS = [GEMINI_3_FLASH, GEMINI_25_LITE, GEMINI_31_LITE, GEMINI_35_LITE, GEMINI_38_FLASH ]
+
+
+# OpenRouter
+NEMOTRON_ULTRA     = "nvidia/nemotron-3-ultra-550b-a55b:free"
+GEMMA_4_31B        = "google/gemma-4-31b-it:free"
+XING_4_29B         = "xingchen-agi/xing4.0-29b-a4b:free" 
+NEMOTRON_LIGHTNING = "nvidia/nemotron-3.5-lightning:free"
+OPENROUTER_MODELS  = [NEMOTRON_ULTRA, GEMMA_4_31B, XING_4_29B, NEMOTRON_LIGHTNING]
 
 def termina_programma(message):
     sys.exit(message)
 
 # dizionario per la manutenibilità del codice
 PROVIDERS = {
+    # LOCALE
     QWEN_NAME: "ollama",
     CODE_LAMA: "ollama",
     CODE_GEMMA: "ollama",
     MISTRAL_ORCA: "ollama",
-    ORNITH: "ollama",
     COGITO: "ollama",
+    # GOOGLE AI STUDIO
     GEMINI_3_FLASH: "gemini",
     GEMINI_25_LITE: "gemini",
     GEMINI_31_LITE: "gemini",
     GEMINI_35_LITE: "gemini",
     GEMINI_38_FLASH: "gemini",
+    # OPEN ROUTER
+    NEMOTRON_ULTRA: "openrouter",
+    GEMMA_4_31B : "openrouter",
+    XING_4_29B: "openrouter",
+    NEMOTRON_LIGHTNING: "openrouter",
+    
 }
-
-
 
 # ==========================================
 # 1. SELEZIONE DEL DOMINIO
@@ -92,24 +113,48 @@ naming_mode = questionary.select(
 # ==========================================
 # 2. SELEZIONE DEL'LLM
 # ==========================================
-  
-# Menu interattivo sul terminale per la selezione del modello LLM
+provider_choice = questionary.select(
+    "Da quale provider vuoi recuperare l'LLM?",
+    choices=PROVIDERS_NAME,
+    instruction=""
+).ask()
+
+if provider_choice == "Google AI Studio":
+    model_choices = GEMINI_MODELS
+elif provider_choice == "OpenRouter":
+    model_choices = OPENROUTER_MODELS
+elif provider_choice == "Locale (Ollama)":
+    model_choices = LOCAL_MODELS
+else:
+    raise ValueError(f"Hai selezionato un provider non valido: {provider_choice}\n")
+
 response = questionary.select(
-    "Quale intelligenza artificiale vuoi utilizzare?",
-    choices=[QWEN_NAME, CODE_LAMA, CODE_GEMMA, MISTRAL_ORCA, ORNITH, COGITO, GEMINI_3_FLASH, GEMINI_25_LITE, GEMINI_31_LITE, GEMINI_35_LITE, GEMINI_38_FLASH ],
-    instruction="", # Rimuove l'indicazione "(Use arrow keys)"
+    f"Quale modello vuoi utilizzare da {provider_choice}?",
+    choices=model_choices,
+    instruction=""
 ).ask()
 
 
+
+
+# ----------------------------------------------
+# INIZIALIZZAZIONE DELL'LLM
+# ----------------------------------------------
 # Inizializzazione del provider LLM selezionato dall'utente (qui utilizzo il dizionario)
 if response not in PROVIDERS:
-    raise ValueError(f"Hai selezionato un LLM non supportato: {response}")
+    raise ValueError(f"Hai selezionato un LLM non supportato: {response}\n")
 
-llm = UnifiedLLM(
-    provider=PROVIDERS[response],
-    model=response,
-    config_path="my_llm.yaml"
-)
+
+if response in OPENROUTER_MODELS:
+    # Wrapper personalizzato per OpenRouter
+    llm = OpenRouterLLMWrapper(model_name=response)
+else:
+    # Modelli nativi l2p (Gemini ed Ollama)
+    llm = UnifiedLLM(
+        provider=PROVIDERS[response],
+        model=response,
+        config_path="my_llm.yaml"
+    )
 
 
 
@@ -214,8 +259,8 @@ prompt_actions = (
     .set_role("You are an expert PDDL Generator Agent. Your role is to model PDDL domain actions (:actions).")
     .set_format("Wrap a VALID JSON ARRAY inside the <actions> ... </actions> XML tags.")
     .add_rule("CRITICAL: The content inside <actions> MUST be ONLY a raw JSON array [ ... ] containing action objects, NOT raw PDDL code.")
-    .add_rule("CRITICAL LANGUAGE RULE: All action names, parameters, descriptions, and type constraints MUST be strictly in ITALIAN.")
-    .add_rule("CRITICAL NAMING RULE: Action names must be clean, grammatically correct Italian verbs/phrases. Do NOT create distorted words or duplicate syllables like 'arara-campo' or 'depona-'.")
+    .add_rule("CRITICAL LANGUAGE RULE: All action names, parameters, descriptions, and type constraints MUST be in ITALIAN.")
+    .add_rule("CRITICAL NAMING RULE: Action names must be clean, grammatically correct Italian verbs/phrases. Do NOT create distorted words.")
     )
 
 # 2. Regola opzionale/condizionale: compatibilità con il file di problema
@@ -242,7 +287,7 @@ prompt_actions = ( prompt_actions
         },
         "desc": "Description of the action"
     }""")
-    .set_task("Extract the necessary actions for the domain in JSON format.")
+    .set_task("Extract the necessary actions for the domain in JSON format. Ensure the JSON array is fully complete and closed with </actions>.")
 )
 
 prompt_actions.save_prompt(filename="custom_template/custom_actions_prompt.md")
@@ -251,21 +296,21 @@ custom_actions_template = load_custom_template(filepath="custom_template/custom_
 # Costruzione del prompt per la REVISIONE (FeedbackBuilder)
 prompt_revise = (
     PromptBuilder()
-    .set_role("You are an expert PDDL Revision Agent. Your job is to fix failed PDDL component generations based on diagnostic feedback.")
-    .set_format("You MUST output the components wrapped in their exact XML tags.")
+    .set_role("You are an expert PDDL Revision Agent. Your job is to fix failed PDDL component generations based on diagnostic feedback and validation errors.")
+    .set_format("You MUST output the components wrapped in their exact XML tags using STRICT JSON arrays for ALL components.")
     .add_rule("CRITICAL FORMAT FOR <types>: Must be a VALID JSON ARRAY of objects (e.g., [{'name': '...', 'parent': '...'}]. NEVER write native PDDL text here. Do NOT include 'object' as a type).")
-    .add_rule("CRITICAL FORMAT FOR <predicates>: Must be a VALID JSON ARRAY of objects with keys 'name', 'params' (containing a list of objects with 'variable' and 'type'), and 'desc'. NEVER write native PDDL text like '(?c - contadino)' inside predicates.")
-    .add_rule("CRITICAL FORMAT FOR <actions>: Can use standard PDDL action blocks.")
-    .add_rule("CRITICAL PDDL RULE: Types and Predicates CANNOT share the same names.")
-    .add_rule("Output ONLY the requested XML blocks. No conversational text.")
-    .set_task("Revise the following PDDL component(s) based on the diagnostic feedback.\n{context}")
+    .add_rule("CRITICAL FORMAT FOR <predicates>: Must be a VALID JSON ARRAY of objects with keys 'name', 'params' (containing a list of objects with 'variable' and 'type'), and 'desc'.")
+    .add_rule("CRITICAL FORMAT FOR <actions>: Must be a VALID JSON ARRAY of action objects matching the expected schema (with 'name', 'params', 'preconditions', and 'effects'). NEVER write raw PDDL like '(:action ...)' inside <actions>.")
+    .add_rule("CRITICAL PDDL RULE: Types and Predicates CANNOT share the same names. Every variable used in preconditions and effects MUST be declared in the action's parameters list.")
+    .add_rule("Output ONLY the requested XML blocks containing valid JSON arrays. No conversational text, explanations, or markdown code blocks outside the XML tags.")
+    .set_task("Revise the following PDDL component(s) based on the diagnostic feedback and errors provided below.\n{context}")
 )
 
 prompt_revise.save_prompt(filename="custom_template/custom_revise_prompt.md")
 custom_revise_template = load_custom_template(filepath="custom_template/custom_revise_prompt.md")
 
 # ============================================================
-# 1. GENERAZIONE INIZIALE DEI COMPONENT DEL FILE DOMAIN.PDDL
+# 4. GENERAZIONE INIZIALE DEI COMPONENT DEL FILE DOMAIN.PDDL
 # ============================================================
 print("\n\n[INFO] Inizio Generazione dei componenti del Domain PDDL (Tipi, Predicati, Azioni)")
 # istanzio le classi necessarie
@@ -332,7 +377,7 @@ print(actions_str)
 
 
 # =======================================================
-# 2. PRIMA COSTRUZIONE E VALIDAZIONE
+# 5. PRIMA COSTRUZIONE E VALIDAZIONE
 # =======================================================
 # Costruisco il contenuto del file
 domain_pddl_content = f"""(define (domain {DOMAIN_NAME})
@@ -361,7 +406,7 @@ domain_validator = DomainValidator()
 domain_result = domain_validator.validate_domain(domain_details)
 
 # =======================================================
-# 3. CICLO DI SELF-CORRECTION (Si attiva SOLO se fallisce)
+# 6. CICLO DI SELF-CORRECTION (Si attiva SOLO se fallisce)
 # =======================================================
 current_attempt = 1
 
@@ -430,7 +475,7 @@ while not domain_result.valid and current_attempt <= MAX_ATTEMPTS:
 
 
 # =======================================================
-# 4. RISULTATO FINALE
+# 7. RISULTATO FINALE
 # =======================================================
 if domain_result.valid:
     print(f"\n[OK] Domain PDDL valido e pronto! Generato in {current_attempt} iterazione/i.")

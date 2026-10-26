@@ -41,6 +41,8 @@ gemini:
     model_params:
       temperature: 0.0
 
+
+      
 ollama:
   # per esecuzione sul proprio pc in locale
   qwen2.5-coder:14b:
