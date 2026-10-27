@@ -21,6 +21,8 @@ from pathlib import Path
 # Importo le classi wrapper per utilizzare gli llm in cloud con l2p
 from WrapperClass.OpenRouterLLMWrapper import OpenRouterLLMWrapper
 
+# Richiamo le mie regole custom per la validazione del dominio
+from custom_rules.domain_rules import get_domain_validation_rules
 
 # Caricamento delle variabili d'ambiente dal file .env
 load_dotenv()
@@ -402,7 +404,9 @@ domain_details = DomainDetails(
     domain_pddl=domain_pddl_content
 )
 
-domain_validator = DomainValidator()
+
+
+domain_validator = DomainValidator(use_defaults=True, custom_rules=get_domain_validation_rules())
 domain_result = domain_validator.validate_domain(domain_details)
 
 # =======================================================
@@ -422,13 +426,37 @@ while not domain_result.valid and current_attempt <= MAX_ATTEMPTS:
         description=domain_desc
     )
 
-    # Fase B: Revisione intelligente dei componenti
+    # Fase B: Analizziamo gli errori per costruire una lista cumulativa dei componenti da correggere
+    # in questo modo, faremo correggere all'LLM solo i componenti dove è contenuto l'errore
+    error_str = str(domain_result.errors).lower()
+    target_classes = []
+
+
+   # 1. Raccogliamo i componenti da correggere in base alle parole chiave nell'errore
+    if "action" in error_str or "precondition" in error_str or "effect" in error_str or "parameter" in error_str:
+        target_classes.append(Action)
+            
+    if "predicate" in error_str:
+        target_classes.append(Predicate)
+            
+    if "type" in error_str or "object" in error_str:
+        target_classes.append(PDDLType)
+
+    # 2. Fallback di sicurezza: se nessun filtro ha intercettato parole chiave
+    # può succedere quando ci sono errori di validazione incrociata o errori geenrati da regole custom i cui messaggi non contengono nessuna di queste parole. 
+    if not target_classes:
+        target_classes = [PDDLType, Predicate, Action]
+
+    # 3. L'artifact è SEMPRE domain_details, quindi lo assegniamo una volta sola fuori!
+    target_artifact = domain_details
+
+    # Fase C: Revisione intelligente dei componenti
     # (Qui max_retries interverrà automaticamente se sbaglia l'XML)
     try:
         revised_results, raw_text_rev = feedback_builder.llm_revise(
             model=llm,
             artifact=domain_details,
-            component_class=[PDDLType, Predicate, Action],
+            component_class=target_classes,
             diagnosis=diagnosis_result,
             description=domain_desc,
             prompt_template=custom_revise_template
