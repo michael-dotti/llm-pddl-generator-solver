@@ -22,7 +22,7 @@ from pathlib import Path
 from WrapperClass.OpenRouterLLMWrapper import OpenRouterLLMWrapper
 
 # Richiamo le mie regole custom per la validazione del dominio
-from custom_rules.domain_rules import get_domain_validation_rules
+import custom_rules.domain_rules
 
 # Caricamento delle variabili d'ambiente dal file .env
 load_dotenv()
@@ -272,6 +272,7 @@ if current_domain_file == "domain_farm_1" :
 # 3. Specifiche di output, vincoli semantici strutturali e task finale 
 prompt_actions = ( prompt_actions
     .add_rule("CRITICAL RULE FOR DRIVING (guida-trattore): When a farmer is `a-bordo` of a tractor and drives it, ONLY the tractor changes its position. Do NOT add an independent `at` effect for the farmer at the destination, because they move implicitly while `a-bordo`.")
+    .add_rule("CRITICAL VARIABLE MATCHING RULE: Every single variable name (e.g., ?c, ?t) used inside `preconditions` and `effects` MUST be strictly declared in the action's `params` list. Do NOT introduce new variables (like ?c2, ?f1, etc.) inside conditions if they are not defined in `params`.")
     .add_rule("CRITICAL EFFICIENCY RULE: Actions MUST have a MAXIMUM of 3 parameters. Avoid actions with 4 or more parameters. If an operation involves multiple elements, break it down or design stateless intermediate checks instead of cramming everything into a single action parameters list.")
     .add_rule("""EXACT JSON STRUCTURE REQUIRED PER ACTION:
     {
@@ -303,6 +304,23 @@ prompt_revise = (
     .add_rule("CRITICAL FORMAT FOR <types>: Must be a VALID JSON ARRAY of objects (e.g., [{'name': '...', 'parent': '...'}]. NEVER write native PDDL text here. Do NOT include 'object' as a type).")
     .add_rule("CRITICAL FORMAT FOR <predicates>: Must be a VALID JSON ARRAY of objects with keys 'name', 'params' (containing a list of objects with 'variable' and 'type'), and 'desc'.")
     .add_rule("CRITICAL FORMAT FOR <actions>: Must be a VALID JSON ARRAY of action objects matching the expected schema (with 'name', 'params', 'preconditions', and 'effects'). NEVER write raw PDDL like '(:action ...)' inside <actions>.")
+    .add_rule("CRITICAL VARIABLE MATCHING RULE: Every single variable name (like ?c, ?t, ?l, ?a, ?s) used inside preconditions and effects MUST be explicitly present in the action's 'params' list. NEVER use a variable in conditions/effects that is not declared in 'params'. If you need a variable, declare it in 'params' first.")
+    .add_rule("""EXACT JSON STRUCTURE REQUIRED FOR ACTIONS IN <actions>:
+    {
+        "name": "action-name",
+        "params": [
+            {"variable": "?c", "type": "contadino"},
+            {"variable": "?t", "type": "trattore"}
+        ],
+        "preconditions": {
+            "conditions": ["(predicate-name ?c ?t)"]
+        },
+        "effects": {
+            "add": ["(predicate-name ?c ?t)"],
+            "delete": ["(predicate-name ?c)"]
+        },
+        "desc": "Description"
+    }""")
     .add_rule("CRITICAL PDDL RULE: Types and Predicates CANNOT share the same names. Every variable used in preconditions and effects MUST be declared in the action's parameters list.")
     .add_rule("Output ONLY the requested XML blocks containing valid JSON arrays. No conversational text, explanations, or markdown code blocks outside the XML tags.")
     .set_task("Revise the following PDDL component(s) based on the diagnostic feedback and errors provided below.\n{context}")
@@ -406,7 +424,8 @@ domain_details = DomainDetails(
 
 
 
-domain_validator = DomainValidator(use_defaults=True, custom_rules=get_domain_validation_rules())
+# Inizializza il validatore (user_defaults=True caricherà automaticamente la funzione decorata)
+domain_validator = DomainValidator(use_defaults=True)
 domain_result = domain_validator.validate_domain(domain_details)
 
 # =======================================================
@@ -447,15 +466,22 @@ while not domain_result.valid and current_attempt <= MAX_ATTEMPTS:
     if not target_classes:
         target_classes = [PDDLType, Predicate, Action]
 
-    # 3. L'artifact è SEMPRE domain_details, quindi lo assegniamo una volta sola fuori!
-    target_artifact = domain_details
+    # Scegliamo l'artifact specifico in base al target, oppure usiamo domain_details se misto
+    if target_classes == [Action]:
+        current_artifact = extracted_actions
+    elif target_classes == [Predicate]:
+        current_artifact = extracted_predicates
+    elif target_classes == [PDDLType]:
+        current_artifact = extracted_types
+    else:
+        current_artifact = domain_details
 
     # Fase C: Revisione intelligente dei componenti
     # (Qui max_retries interverrà automaticamente se sbaglia l'XML)
     try:
         revised_results, raw_text_rev = feedback_builder.llm_revise(
             model=llm,
-            artifact=domain_details,
+            artifact=current_artifact,
             component_class=target_classes,
             diagnosis=diagnosis_result,
             description=domain_desc,

@@ -9,8 +9,9 @@ Wrap a VALID JSON ARRAY inside the <actions> ... </actions> XML tags.
 2. CRITICAL LANGUAGE RULE: All action names, parameters, descriptions, and type constraints MUST be in ITALIAN.
 3. CRITICAL NAMING RULE: Action names must be clean, grammatically correct Italian verbs/phrases. Do NOT create distorted words.
 4. CRITICAL RULE FOR DRIVING (guida-trattore): When a farmer is `a-bordo` of a tractor and drives it, ONLY the tractor changes its position. Do NOT add an independent `at` effect for the farmer at the destination, because they move implicitly while `a-bordo`.
-5. CRITICAL EFFICIENCY RULE: Actions MUST have a MAXIMUM of 3 parameters. Avoid actions with 4 or more parameters. If an operation involves multiple elements, break it down or design stateless intermediate checks instead of cramming everything into a single action parameters list.
-6. EXACT JSON STRUCTURE REQUIRED PER ACTION:
+5. CRITICAL VARIABLE MATCHING RULE: Every single variable name (e.g., ?c, ?t) used inside `preconditions` and `effects` MUST be strictly declared in the action's `params` list. Do NOT introduce new variables (like ?c2, ?f1, etc.) inside conditions if they are not defined in `params`.
+6. CRITICAL EFFICIENCY RULE: Actions MUST have a MAXIMUM of 3 parameters. Avoid actions with 4 or more parameters. If an operation involves multiple elements, break it down or design stateless intermediate checks instead of cramming everything into a single action parameters list.
+7. EXACT JSON STRUCTURE REQUIRED PER ACTION:
     {
         "name": "action-name",
         "params": [

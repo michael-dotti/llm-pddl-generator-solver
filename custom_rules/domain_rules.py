@@ -1,18 +1,19 @@
-from l2p.validators import ValidationRule
+from l2p.validators import domain_rule #  decoratore nativo di l2p
 
+# quando domainValidator() ha come parametro use_defaults=True, carica in
+# automatico tutte le regole @domain_rule
+@domain_rule
 def check_max_action_parameters(action) -> list[str]:
+    """
+    Regola custom per verificare che nessuna azione superi i 3 parametri.
+    """
     errors = []
-    # Controllo sicuro nel caso in cui params sia None o vuoto
-    params = getattr(action, "params", None)
-    if params and len(params) > 3:
+    # Recupero parametri (restituisce lista vuota se manca o è None)
+    params = getattr(action, "params", []) or []
+    
+    if len(params) > 3:
         errors.append(
-            f"[CUSTOM ERROR] L'azione '{action.name}' ha {len(params)} parametri. "
+            f"[CUSTOM ERROR] L'azione '{getattr(action, 'name', 'unknown')}' ha {len(params)} parametri. "
             f"Il limite massimo consentito è 3. Riprogetta l'azione o usa controlli di stato intermedi."
         )
     return errors
-
-def get_domain_validation_rules():
-    # Restituisce la lista di tutte le regole custom da passare al DomainValidator
-    return [
-        ValidationRule(target="action", check_func=check_max_action_parameters)
-    ]
