@@ -84,7 +84,7 @@ PROVIDERS = {
 # ==========================================
 # 1. SELEZIONE DEL DOMINIO
 # ==========================================
-current_domain_file = "domain_farm_v3.txt"
+current_domain_file = "wumpus_world/wumpus_world_v1.txt"
 
 # Percorso completo al file di testo
 file_path = Path("domain_descriptions") / current_domain_file
@@ -182,7 +182,7 @@ prompt_types = (
 
 # 2. Regola opzionale/condizionale: compatibilità con il file di problema 
 # (attivata solo se il dominio in uso include frammenti di problem.pddl)
-if current_domain_file == "domain_farm_1" :
+if current_domain_file == "farm_v1" :
     prompt_types = prompt_types.add_rule("The type name must match the problem file objects")
 
 # 3. Specifiche di output, vincoli semantici strutturali e task finale
@@ -217,7 +217,7 @@ prompt_predicates = (
 )
 
 # 2. Regola opzionale/condizionale: compatibilità con il file di problema 
-if current_domain_file == "domain_farm_1" :
+if current_domain_file == "farm_v1" :
     prompt_predicates = prompt_predicates.add_rule(
         "CRITICAL COMPATIBILITY RULE: Carefully read the Problem file snippet included in the description. "
         "Ensure your predicates match the entities and initial states provided (e.g., how tools or tractor types are defined)."
@@ -266,7 +266,7 @@ prompt_actions = (
     )
 
 # 2. Regola opzionale/condizionale: compatibilità con il file di problema
-if current_domain_file == "domain_farm_1" :
+if current_domain_file == "farm_v1" :
     prompt_actions = prompt_actions.add_rule("CRITICAL COMPATIBILITY: Ensure action parameters and types strictly match the objects and initial state definitions from the Problem file snippet.")
 
 # 3. Specifiche di output, vincoli semantici strutturali e task finale 

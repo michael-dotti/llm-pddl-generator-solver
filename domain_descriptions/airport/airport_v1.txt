@@ -1,0 +1,29 @@
+Il dominio modella un aeroporto con una struttura fissa e predefinita. 
+Esistono unicamente due direzioni di marcia per l'aeroplano: nord e sud. L'aeroplano è caratterizzato dal peso: leggero, medio, pesante. Esiste un unico aeroplano denominato: aereo_CFBEG.
+L'aeroplano, per spostarsi dentro l'aeroporto, usa dei percorsi che vengono chiamati segmenti.
+La rete di segmenti è composta da segmenti con ruoli differenti: le piazzole (pp), le porte d'uscita (ppdoor), le vie di rullaggio est (twe) e ovest (tww), i raccordi tra pista e rullaggio ovest (rwtw) ed est (rwte), e la pista principale (rw) con le sue sezioni ovest (rww) ed est (rwe).
+Ogni segmento è poi caratterizzato da una lunghezza in unità.
+Questi sono tutti i segmenti che compongono l'aeroporto:
+seg_pp_0_60
+seg_ppdoor_0_40
+seg_tww1_0_200
+seg_twe1_0_200
+seg_tww2_0_50
+seg_tww3_0_50
+seg_tww4_0_50
+seg_rww_0_50
+seg_rwtw1_0_10
+seg_rw_0_400
+seg_rwe_0_50
+seg_twe4_0_50
+seg_rwte1_0_10
+seg_twe3_0_50
+seg_twe2_0_50
+seg_rwte2_0_10
+seg_rwtw2_0_10
+
+L'aeroplano si trova sempre su un determinato segmento, possiede una categoria di peso, ed è rivolto verso una direzione di marcia consentita.
+L'aeroplano parte in una piazzola in stato di pushback. Quando l'aeroplano viene avviato, passa allo stato "in movimento", verificando che i segmenti di uscita
+siano liberi. L'aeroplano si sposta tra segmenti adiacenti, se questi non sono occupati o bloccati. Ogni movimento dell'aereo aggiorna l'occupazione
+del segmento corrente, rilascia i blocchi dei segmenti lasciati alle spalle e attiva i blocchi di sicurezza sui segmenti adiacenti.
+L'obiettivo potrebbe essere parcheggiare l'aereo oppure farlo decollare con successo da un segmento valido e correttamente orientato.

@@ -1,0 +1,5 @@
+The Wumpus world features a 4x4 grid containing a monster called a wumpus, multiple bottomless pits, and hidden gold. 
+The agent starts at position (1,1) and must find the gold, pick it up, and return to the starting position (1,1). 
+The agent can move between adjacent connected rooms in the grid. 
+The wumpus can be killed by shooting an arrow, provided the agent has the arrow and faces the wumpus. 
+The agent dies if it enters a room with a pit or an alive wumpus, so those rooms must be avoided or the wumpus must be eliminated first.
