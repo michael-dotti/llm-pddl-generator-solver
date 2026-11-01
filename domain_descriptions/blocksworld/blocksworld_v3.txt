@@ -1,0 +1,6 @@
+;; una via di mezzo tra la versione v1 e v2
+;; l'idea è che l'utente non dovrebbe essere costretto a escplicitare le azioni e i predicati del problema, faciendo la maggior parte del lavoro di atragione logica al posto dell'LLM.
+;; L'obiettivo è poter delegare all'LLM la traduzione concettuale del problema:
+;; l'utente descrive il problema dal punto di vista fisico/operativo, e l'LLM si occupa di derivare la struttura formale (tipi, predicati e azioni)
+
+In un ambiente di Blocksworld, un braccio robotico deve manipolare dei blocchi disposti su una superficie piana (il tavolo) per riorganizzarli in una specifica configurazione obiettivo. I blocchi possono trovarsi direttamente appoggiati sul tavolo oppure impilati l'uno sopra l'altro. Il braccio robotico può sollevare un blocco soltanto se questo si trova in cima a una pila e non ha altri blocchi sopra di sé. Una volta preso un blocco, il robot può rimetterlo sul tavolo oppure impilarlo sopra un altro blocco, a patto che quest'ultimo sia libero e non coperto da altri elementi. L'obiettivo del dominio è raggiungere una struttura di pile desiderata muovendo i blocchi uno alla volta.

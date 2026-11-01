@@ -1,0 +1,32 @@
+;; descrizione del modo in modo molto dettagliato
+
+Il dominio "Blocksworld" modella un classico ambiente di manipolazione robotica in cui un braccio meccanico deve riorganizzare una serie di blocchi per raggiungere una specifica configurazione finale di impilamento.
+
+Entità e Tipi principali:
+
+    Blocchi (block): Gli oggetti fisici che compongono le pile e che possono essere spostati.
+
+    Braccio robotico: L'agente manipolatore dotato di una mano che può essere vuota o occupata.
+
+    Tavolo: La superficie piana di base su cui i blocchi possono essere appoggiati direttamente.
+
+Stati e Relazioni:
+
+    Posizione: Un blocco può trovarsi direttamente sul tavolo oppure sopra un altro blocco.
+
+    Superficie libera (clear): Un blocco si definisce libero se non ha nessun altro blocco sopra di sé, condizione necessaria per poterlo prelevare o per poterci impilare sopra un altro blocco.
+
+    Stato della mano: Il braccio robotico inizia con la mano vuota e può reggere un solo blocco alla volta.
+
+Regole Operative e Azioni:
+
+    Raccolta dal tavolo (pick-up): Il braccio raccoglie un blocco libero che si trova direttamente sul tavolo, impegnando la mano.
+
+    Deposito sul tavolo (put-down): Il braccio posiziona un blocco che sta reggendo direttamente sul tavolo, tornando a mani libere.
+
+    Impilamento (stack): Il braccio posiziona un blocco che sta reggendo sopra un altro blocco, a condizione che quest'ultimo sia libero (coprendolo e rendendolo non più libero).
+
+    Rimozione (unstack): Il braccio solleva un blocco che si trova sopra un altro blocco, liberando così il blocco sottostante.
+
+Obiettivo (Goal):
+Riorganizzare la posizione dei blocchi tramite una sequenza di prese, rilasci edili e impilamenti fino a soddisfare la configurazione finale desiderata.

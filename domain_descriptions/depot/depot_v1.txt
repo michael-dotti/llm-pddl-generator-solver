@@ -1,0 +1,8 @@
+Il dominio "Depot" modella un sistema di logistica avanzata in cui le merci (casse) vengono spostate tra diversi luoghi (suddivisi in depositi e distributori) per mezzo di camion.
+
+Il sistema è composto da una gerarchia di entità: luoghi, camion, gru fisse (paranchi), e superfici d'appoggio che includono pallet fissi a terra e casse trasportabili. Un camion può trasportare più casse contemporaneamente, ma per caricare o scaricare una cassa da un camion occorre l'ausilio di una gru presente nello stesso luogo.
+
+La gru può sollevare una cassa libera prendendola da un pallet, da un'altra cassa o direttamente dall'interno di un camion, e può successivamente depositarla su un'altra superficie libera o caricarla su un mezzo.
+
+L'obiettivo (goal) del dominio è riorganizzare le casse trasportandole nei luoghi di destinazione corretti e impilandole nella configurazione desiderata sopra i rispettivi pallet o altre casse.
+

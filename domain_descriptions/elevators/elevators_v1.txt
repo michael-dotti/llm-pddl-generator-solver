@@ -1,0 +1,18 @@
+Il dominio "Elevators" modella un edificio a più piani in cui i passeggeri devono essere trasportati dal loro piano di partenza al loro piano di destinazione tramite l'uso di ascensori.
+
+Esistono due categorie di ascensori:
+
+    Ascensori veloci (fast-elevator): Possono coprire ampie distanze verticali, ma servono soltanto un sottoinsieme specifico di piani "express" autorizzati (piani raggiungibili).
+
+    Ascensori lenti (slow-elevator): Servono i piani in modo locale, muovendosi lungo sequenze di piani adiacenti.
+
+Le regole operative del sistema prevedono che:
+
+    Un ascensore può spostarsi verso l'alto o verso il basso tra due piani, a condizione che il piano di arrivo sia consentito per quel tipo di ascensore.
+
+    I passeggeri possono salire a bordo di un ascensore quando questo si trova al loro stesso piano, rispettando rigorosamente il limite di capienza massima di persone trasportabili dalla cabina.
+
+    I passeggeri possono scendere dall'ascensore quando raggiungono il piano desiderato.
+
+L'obiettivo (goal) del dominio è pianificare i movimenti degli ascensori e i flussi di imbarco/sbarco per fare in modo che ogni passeggero arrivi con successo al proprio piano di destinazione.
+
