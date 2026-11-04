@@ -9,7 +9,6 @@ from l2p.utils.pddl_format import format_types, format_predicates, format_action
 from l2p.utils.pddl_prompt import load_custom_template, load_default_template # per caricare i template custom o quelli di default di l2p (legati a PromptBuilder)
 
 # Librerie di sistema e utilità
-import sys # per far terminare prima il programma in caso di errori
 import time # calcola tempo di esecuzione del programma
 import questionary # genera un menu a scelta
 from datetime import datetime # per generare timestamp automatici nei file
@@ -27,85 +26,91 @@ import custom_rules.domain_rules
 # Caricamento delle variabili d'ambiente dal file .env
 load_dotenv()
 
-# COSTANTI DELL'APPLICAZIONE
-DOMAIN_NAME = "CAMPI"
-MAX_ATTEMPTS = 5
-PROVIDERS_NAME = ["Google AI Studio", "OpenRouter", "Locale (Ollama)"]
+# Importo le costanti e i metodi di utilità creati da me direttamente da una classe apposita chiamata config.py
+from config import (
+    MAX_ATTEMPTS, 
+    PROVIDERS_NAME, 
+    LOCAL_MODELS, 
+    GEMINI_MODELS, 
+    OPENROUTER_MODELS, 
+    PROVIDERS, 
+    termina_programma
+)
 
-# Modelli in locale
-QWEN_NAME = "qwen2.5-coder:7b"
-CODE_LAMA = "codellama:latest"
-CODE_GEMMA = "codegemma:latest"
-MISTRAL_ORCA = "mistral-openorca:7b"
-COGITO = "cogito:8b"
-LOCAL_MODELS = [QWEN_NAME, CODE_LAMA, CODE_GEMMA, MISTRAL_ORCA, COGITO]
+# Importo la funzione per inizializzare l'LLM
+from llm_factory import initialize_llm
 
-# Google Ai Studio
-GEMINI_3_FLASH  = "gemini-3-flash-preview"
-GEMINI_25_LITE  = "gemini-2.5-flash-lite"
-GEMINI_31_LITE  = "gemini-3.1-flash-lite"
-GEMINI_35_LITE  = "gemini-3.5-flash-lite"
-GEMINI_38_FLASH = "gemini-3.8-flash"
-GEMINI_MODELS = [GEMINI_3_FLASH, GEMINI_25_LITE, GEMINI_31_LITE, GEMINI_35_LITE, GEMINI_38_FLASH ]
-
-
-# OpenRouter
-NEMOTRON_ULTRA     = "nvidia/nemotron-3-ultra-550b-a55b:free"
-GEMMA_4_31B        = "google/gemma-4-31b-it:free"
-XING_4_29B         = "xingchen-agi/xing4.0-29b-a4b:free" 
-NEMOTRON_LIGHTNING = "nvidia/nemotron-3.5-lightning:free"
-OPENROUTER_MODELS  = [NEMOTRON_ULTRA, GEMMA_4_31B, XING_4_29B, NEMOTRON_LIGHTNING]
-
-def termina_programma(message):
-    sys.exit(message)
-
-# dizionario per la manutenibilità del codice
-PROVIDERS = {
-    # LOCALE
-    QWEN_NAME: "ollama",
-    CODE_LAMA: "ollama",
-    CODE_GEMMA: "ollama",
-    MISTRAL_ORCA: "ollama",
-    COGITO: "ollama",
-    # GOOGLE AI STUDIO
-    GEMINI_3_FLASH: "gemini",
-    GEMINI_25_LITE: "gemini",
-    GEMINI_31_LITE: "gemini",
-    GEMINI_35_LITE: "gemini",
-    GEMINI_38_FLASH: "gemini",
-    # OPEN ROUTER
-    NEMOTRON_ULTRA: "openrouter",
-    GEMMA_4_31B : "openrouter",
-    XING_4_29B: "openrouter",
-    NEMOTRON_LIGHTNING: "openrouter",
-    
-}
 
 # ==========================================
-# 1. SELEZIONE DEL DOMINIO
+# 1. SELEZIONE A DUE PASSI (CARTELLA -> FILE)
 # ==========================================
-current_domain_file = "wumpus_world/wumpus_world_v1.txt"
+descriptions_dir = Path("domain_descriptions")
 
-# Percorso completo al file di testo
-file_path = Path("domain_descriptions") / current_domain_file
+# 1. Trova tutte le sottocartelle all'interno di "domain_descriptions"
+folders = [f.name for f in descriptions_dir.iterdir() if f.is_dir() and not f.name.startswith('.')]
+if not folders:
+    termina_programma(f"[ERRORE] Nessuna sottocartella trovata in '{descriptions_dir}/'.")
+
+# ordina le cartelle alfabeticamente
+folders.sort()
+
+# Primo Menù: Selezione della cartella del dominio
+selected_folder = questionary.select(
+    "Seleziona la cartella del dominio da esplorare:",
+    choices=folders
+).ask()
+
+# Percorso della cartella scelta
+folder_path = descriptions_dir / selected_folder
+
+# 2. Trova tutti i file .txt all'interno della cartella selezionata
+available_files = [f.name for f in folder_path.glob("*.txt")]
+if not available_files:
+    termina_programma(f"[ERRORE] Nessun file .txt trovato nella cartella '{selected_folder}/'.")
+
+available_files.sort()
+
+# Secondo menu: Selezione del file di descrizione specifico (es. v1, v2, v3)
+current_domain_file_name = questionary.select(
+    f"Seleziona il file di descrizione per '{selected_folder}':",
+    choices=available_files
+).ask()
+
+# Percorso completo al file di testo selezionato
+file_path = folder_path / current_domain_file_name
 
 # Lettura automatica del file di testo
 try:
     with open(file_path, "r", encoding="utf-8") as f:
         domain_desc = f.read()
-    print(f" \n[OK] Testo del dominio caricato correttamente da: {file_path}\n")
+    print(f"\n[OK] Testo del dominio caricato correttamente da: {file_path}\n")
 except FileNotFoundError:
-    print(f" \n[ERRORE] Il file '{file_path}' non è stato trovato. Verifica il nome.")
+    termina_programma(f"[ERRORE] Il file '{file_path}' non è stato trovato. Verifica il nome.")
     domain_desc = ""
 
 # -------------------------------------------------------------
-# SCELTA MODALITÀ DI NAMING DEL FILE DOMAIN.PDDL
+# ESTRAZIONE AUTOMATICA DEL NOME DEL DOMINIO PDDL
+# -------------------------------------------------------------
+# Es: se il file è "blocksworld_v1.txt", lo stem è "blocksworld_v1"
+# Splittando per "_" otteniamo "blocksworld"
+
+file_stem = Path(current_domain_file_name).stem 
+suggested_domain_name = file_stem.split('_')[0] 
+
+# Permette all'utente di confermare o modificare al volo il nome del dominio PDDL
+domain_name = questionary.text(
+    "Conferma o modifica il nome PDDL del dominio:",
+    default=suggested_domain_name
+).ask()
+
+# -------------------------------------------------------------
+# SCELTA MODALITÀ DI NAMING DEL FILE PDDL DI SALVATAGGIO
 # -------------------------------------------------------------
 naming_mode = questionary.select(
     "Come vuoi gestire il nome del file PDDL del dominio in salvataggio?",
     choices=[
         "Manuale (scelgo io il nome da terminale)",
-        "Automatico (genera nome con timestamp: domain_YYYYMMDD_HHMMSS.pddl)"
+        f"Automatico (genera nome con timestamp o prefisso: domain_{domain_name}_YYYYMMDD_HHMMSS.pddl)"
     ],
     instruction=""
 ).ask()
@@ -113,51 +118,9 @@ naming_mode = questionary.select(
 
 
 # ==========================================
-# 2. SELEZIONE DEL'LLM
+# 2. INIZIALIZZAZIONE DELL'LLM 
 # ==========================================
-provider_choice = questionary.select(
-    "Da quale provider vuoi recuperare l'LLM?",
-    choices=PROVIDERS_NAME,
-    instruction=""
-).ask()
-
-if provider_choice == "Google AI Studio":
-    model_choices = GEMINI_MODELS
-elif provider_choice == "OpenRouter":
-    model_choices = OPENROUTER_MODELS
-elif provider_choice == "Locale (Ollama)":
-    model_choices = LOCAL_MODELS
-else:
-    raise ValueError(f"Hai selezionato un provider non valido: {provider_choice}\n")
-
-response = questionary.select(
-    f"Quale modello vuoi utilizzare da {provider_choice}?",
-    choices=model_choices,
-    instruction=""
-).ask()
-
-
-
-
-# ----------------------------------------------
-# INIZIALIZZAZIONE DELL'LLM
-# ----------------------------------------------
-# Inizializzazione del provider LLM selezionato dall'utente (qui utilizzo il dizionario)
-if response not in PROVIDERS:
-    raise ValueError(f"Hai selezionato un LLM non supportato: {response}\n")
-
-
-if response in OPENROUTER_MODELS:
-    # Wrapper personalizzato per OpenRouter
-    llm = OpenRouterLLMWrapper(model_name=response)
-else:
-    # Modelli nativi l2p (Gemini ed Ollama)
-    llm = UnifiedLLM(
-        provider=PROVIDERS[response],
-        model=response,
-        config_path="my_llm.yaml"
-    )
-
+llm = initialize_llm()
 
 
 # ======================================================
@@ -182,7 +145,7 @@ prompt_types = (
 
 # 2. Regola opzionale/condizionale: compatibilità con il file di problema 
 # (attivata solo se il dominio in uso include frammenti di problem.pddl)
-if current_domain_file == "farm_v1" :
+if current_domain_file_name == "farm_v1" :
     prompt_types = prompt_types.add_rule("The type name must match the problem file objects")
 
 # 3. Specifiche di output, vincoli semantici strutturali e task finale
@@ -217,7 +180,7 @@ prompt_predicates = (
 )
 
 # 2. Regola opzionale/condizionale: compatibilità con il file di problema 
-if current_domain_file == "farm_v1" :
+if current_domain_file_name == "farm_v1" :
     prompt_predicates = prompt_predicates.add_rule(
         "CRITICAL COMPATIBILITY RULE: Carefully read the Problem file snippet included in the description. "
         "Ensure your predicates match the entities and initial states provided (e.g., how tools or tractor types are defined)."
@@ -266,7 +229,7 @@ prompt_actions = (
     )
 
 # 2. Regola opzionale/condizionale: compatibilità con il file di problema
-if current_domain_file == "farm_v1" :
+if current_domain_file_name == "farm_v1" :
     prompt_actions = prompt_actions.add_rule("CRITICAL COMPATIBILITY: Ensure action parameters and types strictly match the objects and initial state definitions from the Problem file snippet.")
 
 # 3. Specifiche di output, vincoli semantici strutturali e task finale 
@@ -400,7 +363,7 @@ print(actions_str)
 # 5. PRIMA COSTRUZIONE E VALIDAZIONE
 # =======================================================
 # Costruisco il contenuto del file
-domain_pddl_content = f"""(define (domain {DOMAIN_NAME})
+domain_pddl_content = f"""(define (domain {domain_name})
   (:requirements :typing :strips :negative-preconditions)
 
   (:types
@@ -415,7 +378,7 @@ domain_pddl_content = f"""(define (domain {DOMAIN_NAME})
 )"""
 
 domain_details = DomainDetails(
-    name=DOMAIN_NAME,
+    name=domain_name,
     types=extracted_types,
     predicates=extracted_predicates,
     actions=extracted_actions,
@@ -504,7 +467,7 @@ while not domain_result.valid and current_attempt <= MAX_ATTEMPTS:
     actions_str = format_actions(extracted_actions)
     
     # Ricostruisci il file PDDL con i componenti aggiornati
-    domain_pddl_content = f"""(define (domain {DOMAIN_NAME})
+    domain_pddl_content = f"""(define (domain {domain_name})
         (:requirements :typing :strips :negative-preconditions)
 
         (:types
