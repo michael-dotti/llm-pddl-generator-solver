@@ -7,7 +7,10 @@ from config import (
     PROVIDERS,
     termina_programma
 )
+
+# Importo le classi wrapper per utilizzare gli llm in cloud che normalmente non sono compatibili con l2p
 from WrapperClass.OpenRouterLLMWrapper import OpenRouterLLMWrapper
+
 from l2p import UnifiedLLM
 
 def initialize_llm():

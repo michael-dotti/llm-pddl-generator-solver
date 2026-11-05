@@ -1,6 +1,7 @@
 from pathlib import Path
-from l2p import PromptBuilder
-from l2p.utils.pddl_prompt import load_custom_template, load_default_template
+from l2p import PromptBuilder # per aiutare LLM nel comprendere come eseguire correttamente il suo compito
+from l2p.utils.pddl_prompt import load_custom_template, load_default_template # per caricare i template custom o quelli di default di l2p (legati a PromptBuilder)
+
 
 def get_domain_prompts(selected_folder: str, current_domain_file_name: str):
     """

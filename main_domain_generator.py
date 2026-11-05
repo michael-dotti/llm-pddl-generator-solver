@@ -1,12 +1,3 @@
-# Moduli fondamentali per la gestione di LLM e PDDL
-from l2p import DomainBuilder, UnifiedLLM, OPENAI, DomainValidator # fondamentali per generare un file domain.pddl e rilevare evenuali errori
-from l2p.feedback_builder import FeedbackBuilder # per correggere eventuali errori nel dominio
-from l2p.prompt_builder import PromptBuilder # per aiutare LLM nel comprendere come eseguire correttamente il suo compito
-
-# Funzioni di utilità e tipi PDDL
-from l2p.utils.pddl_types import DomainDetails, PDDLType, Action, Predicate
-from l2p.utils.pddl_format import format_types, format_predicates, format_actions
-from l2p.utils.pddl_prompt import load_custom_template, load_default_template # per caricare i template custom o quelli di default di l2p (legati a PromptBuilder)
 
 # Librerie di sistema e utilità
 import time # calcola tempo di esecuzione del programma
@@ -16,12 +7,6 @@ from dotenv import load_dotenv # per caricare le variabili d'ambiente
 
 # per recuperare il percorso del file
 from pathlib import Path
-
-# Importo le classi wrapper per utilizzare gli llm in cloud con l2p
-from WrapperClass.OpenRouterLLMWrapper import OpenRouterLLMWrapper
-
-# Richiamo le mie regole custom per la validazione del dominio
-import custom_rules.domain_rules
 
 # Caricamento delle variabili d'ambiente dal file .env
 load_dotenv()
@@ -37,6 +22,9 @@ from llm_factory import initialize_llm
 
 # Importo la funzione per caricare gli appropriati prompt per il dominio
 from prompt_manager import get_domain_prompts
+
+# avendo spostato la logica di creazione e validazione del dominio dentro a "pipeline_executor", devo recuperare il metodo, da questa classe, per avviare la pipeline
+from pipeline_executor import run_domain_pipeline
 
 # ==========================================
 # 1. SELEZIONE A DUE PASSI (CARTELLA -> FILE)
@@ -128,210 +116,28 @@ custom_types_prompt, custom_predicates_prompt, custom_actions_prompt, custom_rev
     current_domain_file_name=current_domain_file_name
 )
 
+prompts = (custom_types_prompt, custom_predicates_prompt, custom_actions_prompt, custom_revise_prompt)
+
 # ============================================================
 # 4. GENERAZIONE INIZIALE DEI COMPONENT DEL FILE DOMAIN.PDDL
 # ============================================================
-print("\n\n[INFO] Inizio Generazione dei componenti del Domain PDDL (Tipi, Predicati, Azioni)")
-# istanzio le classi necessarie
-# istanza del DomainBuilder: classe che permette di creare a partire da una descrizione in linguaggio umano il dominio del problema PDDL
-domain_builder = DomainBuilder()
-
-# Istanza del FeedbackBuilder
-feedback_builder = FeedbackBuilder()
-
 
 # inizio da qui a contare il tempo impiegato dall'LLM per risolvere il problema.
 start_time = time.time()
 
-# Tipi
-try:
-    types_results, llm_output = domain_builder.formalize_component(
-        model=llm,
-        component_class=PDDLType,
-        description=domain_desc,
-        prompt_template=custom_types_prompt
+success, domain_pddl_content, attempts_used, error_msg = run_domain_pipeline(
+        llm=llm,
+        domain_desc=domain_desc,
+        domain_name=domain_name,
+        prompts=prompts,
     )
-except (ValueError, RuntimeError) as e:
-    termina_programma(f"Errore durante l'estrazione dei tipi: {e}")
-
-extracted_types = types_results[PDDLType]
-types_str = format_types(extracted_types)
-print("--- TIPI GENERATI ---\n")
-print(types_str)  # stampa i tipi estratti dall'LLM
-
-# Predicati
-try:
-    predicates_results, predicates_llm_output = domain_builder.formalize_component(
-        model=llm,
-        component_class=Predicate,   # Specifichiamo di voler estrarre i predicati
-        description=domain_desc,     # Usiamo la stessa descrizione
-        types=extracted_types,        # Passiamo i tipi all'LLM per garantirne la coerenza
-        prompt_template=custom_predicates_prompt
-    )
-except (ValueError, RuntimeError) as e:
-    termina_programma(f"Errore durante l'estrazione dei predicati: {e}")
-
-extracted_predicates = predicates_results[Predicate] #  Estraiamo la lista dei predicati dal dizionario dei risultati
-predicates_str = format_predicates(extracted_predicates)  # Formattiamo i predicati in sintassi PDDL standard usando le utils della libreria
-print("--- PREDICATI GENERATI ---\n")
-print(predicates_str)
-
-# Azioni
-try:
-    actions_results, actions_llm_output = domain_builder.formalize_component(
-        model=llm,
-        component_class=Action,
-        description=domain_desc,
-        types=extracted_types,
-        predicates=extracted_predicates,
-        prompt_template=custom_actions_prompt
-    )
-except (ValueError, RuntimeError) as e:
-    termina_programma(f"Errore durante l'estrazione delle azioni: {e}")
-
-extracted_actions = actions_results[Action]  # Estraiamo la lista delle azioni
-actions_str = format_actions(extracted_actions) # Formattiamo le azioni in sintassi PDDL standard
-print("\n--- AZIONI GENERATE ---")
-print(actions_str)
-
-
-# =======================================================
-# 5. PRIMA COSTRUZIONE E VALIDAZIONE
-# =======================================================
-# Costruisco il contenuto del file
-domain_pddl_content = f"""(define (domain {domain_name})
-  (:requirements :typing :strips :negative-preconditions)
-
-  (:types
-{types_str}
-  )
-
-  (:predicates
-{predicates_str}
-  )
-
-{actions_str}
-)"""
-
-domain_details = DomainDetails(
-    name=domain_name,
-    types=extracted_types,
-    predicates=extracted_predicates,
-    actions=extracted_actions,
-    domain_pddl=domain_pddl_content
-)
-
-
-
-# Inizializza il validatore (user_defaults=True caricherà automaticamente la funzione decorata)
-domain_validator = DomainValidator(use_defaults=True)
-domain_result = domain_validator.validate_domain(domain_details)
-
-# =======================================================
-# 6. CICLO DI SELF-CORRECTION (Si attiva SOLO se fallisce)
-# =======================================================
-current_attempt = 1
-
-while not domain_result.valid and current_attempt <= MAX_ATTEMPTS:
-    print(f"\n[ERRORE] Validazione semantica PDDL fallita. Avvio Self-Correction {current_attempt}/{MAX_ATTEMPTS}...")
-    print(f"Errori: {domain_result.errors}\n")
-
-    # Fase A: Diagnosi dell'errore PDDL
-    diagnosis_result, raw_text_diag = feedback_builder.llm_diagnose(
-        model=llm,
-        artifact=domain_details,
-        errors=domain_result.errors,
-        description=domain_desc
-    )
-
-    # Fase B: Analizziamo gli errori per costruire una lista cumulativa dei componenti da correggere
-    # in questo modo, faremo correggere all'LLM solo i componenti dove è contenuto l'errore
-    error_str = str(domain_result.errors).lower()
-    target_classes = []
-
-
-   # 1. Raccogliamo i componenti da correggere in base alle parole chiave nell'errore
-    if "action" in error_str or "precondition" in error_str or "effect" in error_str or "parameter" in error_str:
-        target_classes.append(Action)
-            
-    if "predicate" in error_str:
-        target_classes.append(Predicate)
-            
-    if "type" in error_str or "object" in error_str:
-        target_classes.append(PDDLType)
-
-    # 2. Fallback di sicurezza: se nessun filtro ha intercettato parole chiave
-    # può succedere quando ci sono errori di validazione incrociata o errori geenrati da regole custom i cui messaggi non contengono nessuna di queste parole. 
-    if not target_classes:
-        target_classes = [PDDLType, Predicate, Action]
-
-    # Scegliamo l'artifact specifico in base al target, oppure usiamo domain_details se misto
-    if target_classes == [Action]:
-        current_artifact = extracted_actions
-    elif target_classes == [Predicate]:
-        current_artifact = extracted_predicates
-    elif target_classes == [PDDLType]:
-        current_artifact = extracted_types
-    else:
-        current_artifact = domain_details
-
-    # Fase C: Revisione intelligente dei componenti
-    # (Qui max_retries interverrà automaticamente se sbaglia l'XML)
-    try:
-        revised_results, raw_text_rev = feedback_builder.llm_revise(
-            model=llm,
-            artifact=current_artifact,
-            component_class=target_classes,
-            diagnosis=diagnosis_result,
-            description=domain_desc,
-            prompt_template=custom_revise_prompt
-        )
-    except (ValueError, RuntimeError) as e:
-        termina_programma(f"Errore durante la revisione dei componenti PDDL: {e}")
-
-    
-    # Aggiorna i componenti corretti
-    if PDDLType in revised_results:
-        extracted_types = revised_results[PDDLType]
-    if Predicate in revised_results:
-        extracted_predicates = revised_results[Predicate]
-    if Action in revised_results:
-        extracted_actions = revised_results[Action]
-
-    types_str = format_types(extracted_types)
-    predicates_str = format_predicates(extracted_predicates)
-    actions_str = format_actions(extracted_actions)
-    
-    # Ricostruisci il file PDDL con i componenti aggiornati
-    domain_pddl_content = f"""(define (domain {domain_name})
-        (:requirements :typing :strips :negative-preconditions)
-
-        (:types
-        {types_str}
-        )
-
-        (:predicates
-        {predicates_str}
-        )
-
-        {actions_str}
-        )"""
-
-    domain_details.domain_pddl = domain_pddl_content
-    domain_details.types = extracted_types
-    domain_details.predicates = extracted_predicates
-    domain_details.actions = extracted_actions
-
-    # Determinare se il dominio e' corretto o se e' necessario correggerlo nuovamente
-    domain_result = domain_validator.validate_domain(domain_details)
-    current_attempt += 1
-
+end_time = time.time()
 
 # =======================================================
 # 7. RISULTATO FINALE
 # =======================================================
-if domain_result.valid:
-    print(f"\n[OK] Domain PDDL valido e pronto! Generato in {current_attempt} iterazione/i.")
+if success:
+    print(f"\n[OK] Domain PDDL valido e pronto! Generato in {attempts_used} iterazione/i.")
     print("--- ANTEPRIMA DEL FILE DOMAIN.PDDL ---\n")
     print(domain_pddl_content)
 
@@ -341,7 +147,7 @@ if domain_result.valid:
     # Controllo in base alla scelta del flag iniziale
     if "Manuale" in naming_mode:
         domain_filename = questionary.text(
-            "/nInserisci il nome del file PDDL del dominio:",
+            "\nInserisci il nome del file PDDL del dominio:",
             default=f"domain_{domain_name}.pddl"
         ).ask()
         
@@ -359,8 +165,10 @@ if domain_result.valid:
         f.write(domain_pddl_content)
         
     print(f"\n[SALVATAGGIO] File scritto correttamente come: '{filename_output}'")
-else:
-    termina_programma(f"\n[FATAL] L'LLM ha fallito la generazione dopo {MAX_ATTEMPTS} tentativi. Ultimi errori: {domain_result.errors}")
+    print(f"\n[TIMER] Tempo totale di esecuzione: {end_time - start_time:.2f} secondi")
 
-end_time = time.time()
-print(f"\n[TIMER] Tempo totale di esecuzione: {end_time - start_time:.2f} secondi")
+else:
+    termina_programma(f"\n[FATAL] L'LLM ha fallito la generazione dopo {MAX_ATTEMPTS} tentativi. Ultimi errori: {error_msg}")
+
+
+
