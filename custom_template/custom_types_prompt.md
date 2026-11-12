@@ -10,12 +10,12 @@ Wrap a VALID JSON ARRAY inside the <types> ... </types> XML tags.
 3. CRITICAL: The content inside <types> MUST be ONLY a raw JSON array [ ... ].
 4. CRITICAL PDDL RULE: Do NOT include 'object' as a type. 'object' is a reserved PDDL keyword and is implicit. Start your hierarchy directly from user types (parent: 'object').
 5. EXACT OUTPUT FORMAT REQUIRED:
-        <types>
-        [
-            {"name": "contadino", "parent": "object"},
-            {"name": "campo", "parent": "object"}
-        ]
-        </types>
+                <types>
+                [
+                    {"name": "contadino", "parent": "object"},
+                    {"name": "campo", "parent": "object"}
+                ]
+                </types>
 6. Do NOT reuse type names as predicate names.
 
 ## TASK

@@ -2,7 +2,7 @@ import sys # per far terminare prima il programma in caso di errori
 
 # COSTANTI DELL'APPLICAZIONE
 MAX_ATTEMPTS = 5
-PROVIDERS_NAME = ["Google AI Studio", "OpenRouter", "Locale (Ollama)"]
+PROVIDERS_NAME = ["Google AI Studio", "OpenRouter","Nvidia NIM", "Locale (Ollama)"]
 
 # Modelli in locale
 QWEN_NAME = "qwen2.5-coder:7b"
@@ -28,6 +28,10 @@ XING_4_29B         = "xingchen-agi/xing4.0-29b-a4b:free"
 NEMOTRON_LIGHTNING = "nvidia/nemotron-3.5-lightning:free"
 OPENROUTER_MODELS  = [NEMOTRON_ULTRA, GEMMA_4_31B, XING_4_29B, NEMOTRON_LIGHTNING]
 
+# Nvidia NIM
+MISTRAL_LARGE_4 = "mistralai/mistral-large-4-1t-a52b"
+NVIDIA_MODELS = [MISTRAL_LARGE_4]
+
 def termina_programma(message):
     sys.exit(message)
 
@@ -50,5 +54,6 @@ PROVIDERS = {
     GEMMA_4_31B : "openrouter",
     XING_4_29B: "openrouter",
     NEMOTRON_LIGHTNING: "openrouter",
+    MISTRAL_LARGE_4: "nvidia_nim",
     
 }

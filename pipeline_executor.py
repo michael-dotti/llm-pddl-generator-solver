@@ -74,8 +74,22 @@ def _generate_initial_components(llm, domain_desc: str, prompts: tuple, domain_b
 
 def _build_pddl_content(domain_name: str, types_str: str, predicates_str: str, actions_str: str) -> str:
     """Metodo privato per assemblare la stringa del file PDDL."""
+
+    # Requisiti di base sempre presenti
+    requirements = [":typing", ":strips", ":negative-preconditions"]
+    
+    # Cerco nelle azioni dei costrutti che possano richiedere requisiti aggiuntivi 
+    full_actions_text = actions_str.lower()
+    
+    # se l'LLM ha usato l'uguaglianza, aggiungiamo :equality
+    if "=" in full_actions_text or "(=" in full_actions_text:
+        if ":equality" not in requirements:
+            requirements.append(":equality")
+
+    reqs_formatted = " ".join(requirements)
+
     return f"""(define (domain {domain_name})
-  (:requirements :typing :strips :negative-preconditions)
+  (:requirements {reqs_formatted})
 
   (:types
 {types_str}

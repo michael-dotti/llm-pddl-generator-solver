@@ -12,21 +12,21 @@ Wrap a VALID JSON ARRAY inside the <actions> ... </actions> XML tags.
 5. CRITICAL VARIABLE MATCHING RULE: Every single variable name (e.g., ?c, ?t) used inside `preconditions` and `effects` MUST be strictly declared in the action's `params` list. Do NOT introduce new variables (like ?c2, ?f1, etc.) inside conditions if they are not defined in `params`.
 6. CRITICAL EFFICIENCY RULE: Actions MUST have a MAXIMUM of 3 parameters. Avoid actions with 4 or more parameters. If an operation involves multiple elements, break it down or design stateless intermediate checks instead of cramming everything into a single action parameters list.
 7. EXACT JSON STRUCTURE REQUIRED PER ACTION:
-    {
-        "name": "action-name",
-        "params": [
-            {"variable": "?c", "type": "contadino"},
-            {"variable": "?t", "type": "trattore"}
-        ],
-        "preconditions": {
-            "conditions": ["(at ?c ?loc)", "(at ?t ?loc)"]
-        },
-        "effects": {
-            "add": ["(a-bordo ?c ?t)"],
-            "delete": ["(at ?c ?loc)"]
-        },
-        "desc": "Description of the action"
-    }
+            {
+                "name": "action-name",
+                "params": [
+                    {"variable": "?c", "type": "contadino"},
+                    {"variable": "?t", "type": "trattore"}
+                ],
+                "preconditions": {
+                    "conditions": ["(at ?c ?loc)", "(at ?t ?loc)"]
+                },
+                "effects": {
+                    "add": ["(a-bordo ?c ?t)"],
+                    "delete": ["(at ?c ?loc)"]
+                },
+                "desc": "Description of the action"
+            }
 
 ## TASK
 Extract the necessary actions for the domain in JSON format. Ensure the JSON array is fully complete and closed with </actions>.

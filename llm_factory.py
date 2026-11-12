@@ -5,12 +5,13 @@ from config import (
     OPENROUTER_MODELS,
     LOCAL_MODELS,
     PROVIDERS,
+    NVIDIA_MODELS,
     termina_programma
 )
 
 # Importo le classi wrapper per utilizzare gli llm in cloud che normalmente non sono compatibili con l2p
-from WrapperClass.OpenRouterLLMWrapper import OpenRouterLLMWrapper
-
+from WrapperClass.openrouter_wrapper import OpenRouterLLMWrapper
+from WrapperClass.nvidia_wrapper import NvidiaNimLLMWrapper
 from l2p import UnifiedLLM
 
 def initialize_llm():
@@ -33,6 +34,8 @@ def initialize_llm():
         model_choices = OPENROUTER_MODELS
     elif provider_choice == "Locale (Ollama)":
         model_choices = LOCAL_MODELS
+    elif provider_choice == "Nvidia NIM":
+        model_choices = NVIDIA_MODELS
     else:
         termina_programma(f"Hai selezionato un provider non valido: {provider_choice}\nIl Programma Termina...")
 
@@ -54,6 +57,9 @@ def initialize_llm():
     if response in OPENROUTER_MODELS:
         # Wrapper personalizzato per OpenRouter
         llm = OpenRouterLLMWrapper(model_name=response)
+    elif response in NVIDIA_MODELS:
+        # Wrapper personalizzato per NVIDIA NIM
+        llm = NvidiaNimLLMWrapper(model_name=response)
     else:
         # Modelli nativi l2p (Gemini ed Ollama)
         llm = UnifiedLLM(
