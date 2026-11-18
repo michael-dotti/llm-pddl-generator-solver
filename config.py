@@ -30,7 +30,9 @@ OPENROUTER_MODELS  = [NEMOTRON_ULTRA, GEMMA_4_31B, XING_4_29B, NEMOTRON_LIGHTNIN
 
 # Nvidia NIM
 MISTRAL_LARGE_4 = "mistralai/mistral-large-4-1t-a52b"
-NVIDIA_MODELS = [MISTRAL_LARGE_4]
+DEEPSEEK_41 ="deepseek-ai/deepseek-v4.1-flash"
+NEMOTRON_ULTRA_NIM="nvidia/nemotron-3-ultra-550b-a55b"
+NVIDIA_MODELS = [MISTRAL_LARGE_4, DEEPSEEK_41, NEMOTRON_ULTRA_NIM]
 
 def termina_programma(message):
     sys.exit(message)
@@ -55,5 +57,6 @@ PROVIDERS = {
     XING_4_29B: "openrouter",
     NEMOTRON_LIGHTNING: "openrouter",
     MISTRAL_LARGE_4: "nvidia_nim",
-    
+    DEEPSEEK_41: "nvidia_nim",
+    NEMOTRON_ULTRA_NIM : "nvidia_nim",
 }
