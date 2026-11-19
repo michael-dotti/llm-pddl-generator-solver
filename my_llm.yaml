@@ -45,13 +45,6 @@ gemini:
       
 ollama:
   # per esecuzione sul proprio pc in locale
-  qwen2.5-coder:14b:
-    model_family: qwen
-    model_alias: qwen2.5-coder:14b
-    model_context_length: 32768
-    model_params:
-      temperature: 0.0
-
   qwen2.5-coder:7b:
     model_family: qwen
     model_alias: qwen2.5-coder:7b
@@ -86,13 +79,7 @@ ollama:
     model_context_length: 8192
     model_params:
       temperature: 0.0
-
-  ornith-1.5:9b:
-    model_family: ornith
-    model_alias: ornith-1.5:9b
-    model_context_length: 8192
-    model_params:
-      temperature: 0.0
+  
   
   # Per esecuzione sul server/cluster remoto
   qwen3.8:27b:

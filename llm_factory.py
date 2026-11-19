@@ -1,10 +1,12 @@
+# Classe che si occupa dell'inizializzazione del LLM (menu a scelta per utenti + collegamento all'LLM)
+
 import questionary
 from config import (
     PROVIDERS_NAME,
     GEMINI_MODELS,
     OPENROUTER_MODELS,
     LOCAL_MODELS,
-    PROVIDERS,
+    UNIFIED_LLM_PROVIDERS,
     NVIDIA_MODELS,
     termina_programma
 )
@@ -51,8 +53,6 @@ def initialize_llm():
     # ==========================================
     # 3. VALIDAZIONE E INIZIALIZZAZIONE
     # ==========================================
-    if response not in PROVIDERS:
-        termina_programma(f"Hai selezionato un LLM non supportato: {response}\nIl Programma Termina...")
 
     if response in OPENROUTER_MODELS:
         # Wrapper personalizzato per OpenRouter
@@ -60,13 +60,15 @@ def initialize_llm():
     elif response in NVIDIA_MODELS:
         # Wrapper personalizzato per NVIDIA NIM
         llm = NvidiaNimLLMWrapper(model_name=response)
-    else:
+    elif response in UNIFIED_LLM_PROVIDERS:
         # Modelli nativi l2p (Gemini ed Ollama)
         llm = UnifiedLLM(
-            provider=PROVIDERS[response],
+            provider=UNIFIED_LLM_PROVIDERS[response],
             model=response,
             config_path="my_llm.yaml"
         )
+    else:
+        termina_programma(f"Hai selezionato un LLM non supportato: {response}\nIl Programma Termina...")
 
-    print(f"\n[OK] LLM inizializzato con successo: {response} (Provider: {PROVIDERS[response]})\n")
+    print(f"\n[OK] LLM inizializzato con successo: {response} (Provider: {UNIFIED_LLM_PROVIDERS[response]})\n")
     return llm

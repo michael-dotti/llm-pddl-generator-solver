@@ -49,7 +49,7 @@ problems_dir = Path("problems")
 # ==========================================
 # 1. SELEZIONE DEL DOMAIN.PDDL e PROBLEM.PDDL 
 # ==========================================
-print("=== PDDL Solver Pipeline (v0.1) ===\n")
+print("=== PDDL Solver Pipeline (v0.5) ===\n")
 
 domains_dir = Path("domains")
 problems_dir = Path("problems")

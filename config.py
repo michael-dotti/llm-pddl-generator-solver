@@ -37,8 +37,8 @@ NVIDIA_MODELS = [MISTRAL_LARGE_4, DEEPSEEK_41, NEMOTRON_ULTRA_NIM]
 def termina_programma(message):
     sys.exit(message)
 
-# dizionario per la manutenibilità del codice
-PROVIDERS = {
+# provider per gli LLM gestiti tramite UnifiedLLM (senza wrapper dedicati)
+UNIFIED_LLM_PROVIDERS = {
     # LOCALE
     QWEN_NAME: "ollama",
     CODE_LAMA: "ollama",
@@ -51,12 +51,4 @@ PROVIDERS = {
     GEMINI_31_LITE: "gemini",
     GEMINI_35_LITE: "gemini",
     GEMINI_38_FLASH: "gemini",
-    # OPEN ROUTER
-    NEMOTRON_ULTRA: "openrouter",
-    GEMMA_4_31B : "openrouter",
-    XING_4_29B: "openrouter",
-    NEMOTRON_LIGHTNING: "openrouter",
-    MISTRAL_LARGE_4: "nvidia_nim",
-    DEEPSEEK_41: "nvidia_nim",
-    NEMOTRON_ULTRA_NIM : "nvidia_nim",
 }
