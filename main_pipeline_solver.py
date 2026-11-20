@@ -31,7 +31,10 @@ def _select_pddl_file(target_dir: Path, file_type: str) -> Path:
     if not target_dir.exists() or not target_dir.is_dir():
         raise FileNotFoundError(f"La cartella '{target_dir}' non esiste o non è una directory.")
 
-    files = [f.name for f in target_dir.iterdir() if f.is_file() and f.suffix.lower() == '.pddl']
+    files = sorted(
+        [f.name for f in target_dir.iterdir() if f.is_file() and f.suffix.lower() == '.pddl'],
+        key=str.lower
+    )
 
     if not files:
         raise ValueError(f"Nessun file .pddl trovato nella cartella '{target_dir.name}'.")
@@ -73,6 +76,52 @@ print(f"📁 Domain Path:  {domain_path}")
 print(f"📁 Problem Path: {problem_path}")
 print("-----------------------------------")
 
+
+# ======================================================================
+# 2. SCELTA NOME DEL FILE CHE CONTERRA' LA SOLUZIONE AL PROBLEMA (PIANO)
+# ======================================================================
+
+# -------------------------------------------------------------
+# ESTRAZIONE AUTOMATICA DEL NOME SUGGERITO PER LA SOLUZIONE
+# -------------------------------------------------------------
+# Es: se il problema è "dieci_campi_v1.pddl", lo stem è "dieci_campi_v1"
+problem_stem = Path(problem_path).stem # rimuove l'estensione
+suggested_solution_name = problem_stem.removeprefix("problem_") # rimuove la parola iniziale "problem_"
+
+
+solution_base_name = questionary.text(
+    "Conferma o modifica il nome base per il file contenente il piano:",
+    default=suggested_solution_name
+).ask()
+
+# -------------------------------------------------------------
+# SCELTA MODALITÀ DI NAMING DEL FILE CONTENENTE IL PIANO
+# -------------------------------------------------------------
+solution_naming_mode = questionary.select(
+    "Come vuoi gestire il nome del file contenente il piano?",
+    choices=[
+        "Manuale (scelgo io il nome da terminale)",
+        f"Automatico (genera nome con timestamp: solution_{solution_base_name}_YYYYMMDD_HHMMSS.txt)"
+    ],
+    instruction=""
+).ask()
+
+if "Manuale" in solution_naming_mode:
+    solution_filename = questionary.text(
+        "Inserisci il nome del file della soluzione:",
+        default=f"solution_{solution_base_name}.txt"
+    ).ask()
+
+    if not solution_filename.endswith((".txt", ".plan")):
+        solution_filename += ".txt"
+else:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    solution_filename = f"solution_{solution_base_name}_{timestamp}.txt"
+
+solutions_dir = Path("solutions")
+solution_output_path = solutions_dir / solution_filename
+
+
 # ==========================================
 # 3. UTILIZZO DEL PLANNER PER RISOLVERE IL PROBLEMA
 # ==========================================
@@ -108,6 +157,21 @@ if result.is_successful:
             print(f"  {step_idx}. {action}")
     else:
         print("  (Nessuna azione necessaria: stato iniziale già conforme all'obiettivo)")
+
+    # Salvataggio automatico in solutions/
+    solutions_dir.mkdir(parents=True, exist_ok=True)
+
+    if result.plan:
+        plan_lines = [action.strip() for action in result.plan]
+        plan_content = "\n".join(plan_lines) + "\n"
+    else:
+        plan_content = "; Nessuna azione necessaria: stato iniziale già conforme all'obiettivo.\n"
+
+    with open(solution_output_path, "w", encoding="utf-8") as f:
+        f.write(plan_content)
+
+    print(f"\n[SALVATAGGIO] Soluzione salvata correttamente in: '{solution_output_path}'")
+
 else:
     print("\n❌ Il planner non ha trovato una soluzione.")
     if result.error_message:

@@ -3,12 +3,14 @@ __pycache__/
 *.py[codz]
 *$py.class
 
-# Ignora tutti i file all'interno della cartella domains e problems...
+# Ignora tutti i file all'interno della cartella domains, problems e solutions...
 domains/*
 problems/*
+solutions/*
 # ...ma mantieni traccia del file .gitkeep per fare in modo che la cartella esista su GitHub
 !domains/.gitkeep
 !problems/.gitkeep
+!solutions/.gitkeep
 
 # file personali
 personal-robotic-farm-domain-generator.py
