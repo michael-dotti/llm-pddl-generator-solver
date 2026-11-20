@@ -3,11 +3,15 @@
 # 2) versione 0.5 :l'utente può dare in pasto a un planner i domain.pddl e problem.pddl scelti per risolvere il problema
 # 3) versione 1 : il sistema chiederà se selezionare un domain.pddl e/o problem.pddl esistenti o se generarli al momento
 
+import os
 import time 
 import questionary 
 from datetime import datetime 
 from dotenv import load_dotenv
 from pathlib import Path
+
+# Importo le classi per utilizzare i planner. 
+from l2p.planner_builder import FastDownward, PlanningResult
 
 load_dotenv()
 
@@ -72,12 +76,39 @@ print("-----------------------------------")
 # ==========================================
 # 3. UTILIZZO DEL PLANNER PER RISOLVERE IL PROBLEMA
 # ==========================================
+
+# Recupero il percorso dell'eseguibile di Fast Downward dal file .env
+fd_executable = os.getenv("FAST_DOWNWARD_PATH") 
+if not fd_executable or not Path(fd_executable).exists():
+    termina_programma("Percorso di Fast Downward non configurato o non valido (controlla FAST_DOWNWARD_PATH).")
+
+# Istanzio il wrapper del planner Fast Downward
+planner = FastDownward(executable_path=fd_executable, cleanup_temp_files=True)
+
 start_time = time.time()
-
-
+try:
+    result: PlanningResult = planner.run_planner(
+        domain_path=str(domain_path),
+        problem_path=str(problem_path),
+        timeout=60
+    )
+except Exception as e:
+    termina_programma(f"Errore durante l'esecuzione di Fast Downward: {e}")
 end_time = time.time()
 # ==========================================
 # 4. RISULTATO
 # ==========================================
+elapsed = end_time - start_time
+print(f"\n[INFO] Pianificazione completata in {elapsed:.2f} secondi.")
 
-print(f"\n[INFO] Pianificazione completata in {end_time - start_time:.2f} secondi.")
+if result.is_successful:
+    print("\n✅ Piano trovato:")
+    if result.plan:
+        for step_idx, action in enumerate(result.plan, start=1):
+            print(f"  {step_idx}. {action}")
+    else:
+        print("  (Nessuna azione necessaria: stato iniziale già conforme all'obiettivo)")
+else:
+    print("\n❌ Il planner non ha trovato una soluzione.")
+    if result.error_message:
+        print(f"Dettaglio errore: {result.error_message}")

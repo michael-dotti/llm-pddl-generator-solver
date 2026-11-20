@@ -20,7 +20,6 @@ GEMINI_35_LITE  = "gemini-3.5-flash-lite"
 GEMINI_38_FLASH = "gemini-3.8-flash"
 GEMINI_MODELS = [GEMINI_3_FLASH, GEMINI_25_LITE, GEMINI_31_LITE, GEMINI_35_LITE, GEMINI_38_FLASH ]
 
-
 # OpenRouter
 NEMOTRON_ULTRA     = "nvidia/nemotron-3-ultra-550b-a55b:free"
 GEMMA_4_31B        = "google/gemma-4-31b-it:free"
