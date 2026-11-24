@@ -4,6 +4,8 @@
 # 3) versione 1 : il sistema chiederà se selezionare un domain.pddl e/o problem.pddl esistenti o se generarli al momento
 
 import os
+import re # libreria per cercare, verificare, estrarre o sostituire parti di testo seguendo un pattern
+import tempfile
 import time 
 import questionary 
 from datetime import datetime 
@@ -49,6 +51,32 @@ def _select_pddl_file(target_dir: Path, file_type: str) -> Path:
 
     return target_dir / selected
 
+
+def extract_plan_actions(raw_output: str, plan_file_path: Path | None = None) -> list[str]:
+    # 1. Se il file temporaneo del piano esiste ed è non vuoto, leggiamo da lì
+    if plan_file_path and plan_file_path.exists():
+        lines = [
+            line.strip()
+            for line in plan_file_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith(";")
+        ]
+        if lines:
+            return lines
+
+    # 2. Altrimenti estraiamo le azioni da raw_output ignorando le righe di log (es. INFO ...)
+    matches = re.findall(
+        r"^(?!INFO\b)[a-zA-Z0-9_-]+(?:\s+[a-zA-Z0-9_-]+)*\s+\(\d+\)$",
+        raw_output,
+        re.MULTILINE,
+    )
+    return [f"({m.rsplit('(', 1)[0].strip()})" for m in matches]
+
+# Creiamo un percorso temporaneo per --plan-file così non sporca la cartella con "sas_plan"
+tmp_plan_file = tempfile.NamedTemporaryFile(prefix="fd_plan_", delete=False)
+tmp_plan_path = Path(tmp_plan_file.name)
+tmp_plan_file.close()
+
+
 domains_dir = Path("domains")
 problems_dir = Path("problems")
 
@@ -57,9 +85,6 @@ problems_dir = Path("problems")
 # 1. SELEZIONE DEL DOMAIN.PDDL e PROBLEM.PDDL 
 # ==========================================
 print("=== PDDL Solver Pipeline (v0.5) ===\n")
-
-domains_dir = Path("domains")
-problems_dir = Path("problems")
 
 try:
     # 1. selezione del domain.pddl
@@ -139,11 +164,25 @@ try:
     result: PlanningResult = planner.run_planner(
         domain_path=str(domain_path),
         problem_path=str(problem_path),
-        timeout=60
+        timeout=60,
+        custom_args=["--search", "eager_greedy([ff()])"],
     )
+
+    if result.is_successful:
+        default_plan_path = Path("sas_plan")
+        plan_source = default_plan_path if default_plan_path.exists() else tmp_plan_path
+        result.plan = extract_plan_actions(result.raw_output or "", plan_source)
+
 except Exception as e:
     termina_programma(f"Errore durante l'esecuzione di Fast Downward: {e}")
+finally:
+    for temp_file in (tmp_plan_path, Path("sas_plan"), Path("output.sas")):
+        if temp_file.exists():
+            temp_file.unlink(missing_ok=True)
 end_time = time.time()
+
+
+
 # ==========================================
 # 4. RISULTATO
 # ==========================================
@@ -152,19 +191,16 @@ print(f"\n[INFO] Pianificazione completata in {elapsed:.2f} secondi.")
 
 if result.is_successful:
     print("\n✅ Piano trovato:")
-    if result.plan:
-        for step_idx, action in enumerate(result.plan, start=1):
-            print(f"  {step_idx}. {action}")
-    else:
-        print("  (Nessuna azione necessaria: stato iniziale già conforme all'obiettivo)")
-
-    # Salvataggio automatico in solutions/
     solutions_dir.mkdir(parents=True, exist_ok=True)
 
     if result.plan:
+        for step_idx, action in enumerate(result.plan, start=1):
+            print(f"  {step_idx}. {action}")
+
         plan_lines = [action.strip() for action in result.plan]
         plan_content = "\n".join(plan_lines) + "\n"
     else:
+        print("  (Nessuna azione necessaria: stato iniziale già conforme all'obiettivo)")
         plan_content = "; Nessuna azione necessaria: stato iniziale già conforme all'obiettivo.\n"
 
     with open(solution_output_path, "w", encoding="utf-8") as f:
