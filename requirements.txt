@@ -1,6 +1,6 @@
 annotated-types==0.8.0
 anyio==4.16.0
-certifi==2026.10.23
+certifi==2026.11.20
 click==8.5.1
 click-default-group==1.2.4
 condense-json==1.1
@@ -15,7 +15,7 @@ idna==3.20
 jiter==0.19.0
 llm==0.38
 llm-groq==0.9
-openai==3.55.1
+openai==3.58.0
 pluggy==1.7.0
 puremagic==2.3.0
 pydantic==2.14.4
@@ -23,7 +23,7 @@ pydantic_core==2.50.5
 pyreadline3==3.5.6
 python-dateutil==4.0.0
 python-ulid==4.2.0
-PyYAML==6.0.3
+PyYAML==6.0.4
 setuptools==84.2.1
 six==1.17.0
 sniffio==1.3.1
