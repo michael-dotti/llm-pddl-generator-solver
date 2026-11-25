@@ -8,15 +8,6 @@ from dotenv import load_dotenv # per caricare le variabili d'ambiente
 # per recuperare il percorso del file
 from pathlib import Path
 
-# Caricamento delle variabili d'ambiente dal file .env
-load_dotenv()
-
-# Importo le costanti e i metodi di utilità creati da me direttamente da una classe apposita chiamata config.py
-from config import (
-    MAX_ATTEMPTS, 
-    termina_programma
-)
-
 # Importo la funzione per inizializzare l'LLM
 from llm_factory import initialize_llm
 
@@ -25,6 +16,16 @@ from prompt_manager import get_domain_prompts
 
 # avendo spostato la logica di creazione e validazione del dominio dentro a "pipeline_executor", devo recuperare il metodo, da questa classe, per avviare la pipeline
 from pipeline_executor import run_domain_pipeline
+
+
+# Caricamento delle variabili d'ambiente dal file .env
+load_dotenv()
+
+# Importo le costanti e i metodi di utilità creati da me direttamente da una classe apposita chiamata config.py
+from config import (
+    MAX_ATTEMPTS, 
+    termina_programma
+)
 
 # ==========================================
 # 1. SELEZIONE A DUE PASSI (CARTELLA -> FILE)
@@ -133,8 +134,11 @@ success, domain_pddl_content, attempts_used, error_msg = run_domain_pipeline(
     )
 end_time = time.time()
 
+total_time = end_time - start_time
+
+
 # =======================================================
-# 7. RISULTATO FINALE
+# 5. RISULTATO FINALE
 # =======================================================
 if success:
     print(f"\n[OK] Domain PDDL valido e pronto! Generato in {attempts_used} iterazione/i.")
@@ -165,7 +169,7 @@ if success:
         f.write(domain_pddl_content)
         
     print(f"\n[SALVATAGGIO] File scritto correttamente come: '{filename_output}'")
-    print(f"\n[TIMER] Tempo totale di esecuzione: {end_time - start_time:.2f} secondi")
+    print(f"\n[TIMER] Tempo totale di esecuzione: {total_time:.2f} secondi")
 
 else:
     termina_programma(f"\n[FATAL] L'LLM ha fallito la generazione dopo {MAX_ATTEMPTS} tentativi. Ultimi errori: {error_msg}")

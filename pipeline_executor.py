@@ -1,9 +1,12 @@
 from l2p import DomainBuilder, DomainValidator # fondamentali per generare un file domain.pddl e rilevare evenuali errori
+from l2p import ProblemBuilder, ProblemValidator
 from l2p.feedback_builder import FeedbackBuilder # per correggere eventuali errori nel dominio
 
 # Funzioni di utilità e tipi PDDL
 from l2p.utils.pddl_types import DomainDetails, PDDLType, Action, Predicate
+from l2p.utils.pddl_types import ProblemDetails, PDDLObject, InitialState, GoalState 
 from l2p.utils.pddl_format import format_types, format_predicates, format_actions 
+from l2p.utils.pddl_format import format_objects, format_initial_state, format_goal_states
 
 # Richiamo le mie regole custom per la validazione del dominio (usando @domain_rule)
 import custom_rules.domain_rules
