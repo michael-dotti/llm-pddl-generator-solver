@@ -5,7 +5,7 @@ from l2p.utils.pddl_prompt import load_custom_template, load_default_template # 
 
 def get_domain_prompts(selected_folder: str, current_domain_file_name: str):
     """
-    In base alla cartella e al file selezionato, restituisce i 4 template necessari:
+    In base alla cartella e al file selezionato, restituisce i 4 template necessari per generare domain.pddl:
     1. types
     2. predicates
     3. actions
@@ -195,3 +195,24 @@ def get_domain_prompts(selected_folder: str, current_domain_file_name: str):
         default_revise = load_default_template("feedback", "prompt_revise.md")
 
         return default_types, default_predicates, default_actions, default_revise
+
+
+def get_problem_prompts(selected_folder: str, current_problem_file_name: str):
+    """
+        In base alla cartella e al file selezionato, restituisce i 4 template necessari per generare problem.pddl:
+        1. objects
+        2. initial_states
+        3. goal_states
+        4. revise
+        
+        Per ora, utilizziamo sempre i prompt di default
+    """
+
+    print(f"\n[INFO] Caricamento template di default di l2p per il problema '{selected_folder}'...")
+
+    default_objects = load_default_template("problem", "prompt_objects.md")
+    default_initial_states = load_default_template("problem", "prompt_initial_states.md")
+    default_goal_state = load_default_template("problem", "prompt_goal_states.md")
+    default_revise = load_default_template("feedback", "prompt_revise.md")
+    
+    return default_objects, default_initial_states, default_goal_state, default_revise 
