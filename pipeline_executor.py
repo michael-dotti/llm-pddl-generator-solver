@@ -293,8 +293,9 @@ def _generate_problem_components( llm, problem_desc: str, domain_details: Domain
     except (ValueError, RuntimeError) as e:
         raise RuntimeError(f"Errore durante l'estrazione dello stato iniziale: {e}")
 
-    extracted_initialState = initial_state_results[InitialState]
-    initialState_str = format_initial_state(extracted_initialState)
+    extracted_initialState = initial_state_results.get(InitialState, [])
+    initial_state_item = extracted_initialState[0] if extracted_initialState else None
+    initialState_str = format_initial_state(initial_state_item) if initial_state_item else ""
     print("--- STATO INIZIALE GENERATO ---\n")
     print(initialState_str)
 
@@ -313,13 +314,22 @@ def _generate_problem_components( llm, problem_desc: str, domain_details: Domain
     except (ValueError, RuntimeError) as e:
         raise RuntimeError(f"Errore durante l'estrazione del goal: {e}")
 
-    extracted_goal = goal_results[GoalState]
-    goal_str = format_goal_states(extracted_goal)
+    extracted_goal = goal_results.get(GoalState, [])
+    goal_item = extracted_goal[0] if extracted_goal else None
+    goal_str = format_goal_states(goal_item) if goal_item else ""
     print("\n--- GOAL GENERATO ---")
     print(goal_str)
 
-    return ( extracted_objects, extracted_initialState, extracted_goal, objects_str, initialState_str, goal_str)
-
+    return (
+        extracted_objects,
+        extracted_initialState,
+        extracted_goal,
+        initial_state_item,
+        goal_item,
+        objects_str,
+        initialState_str,
+        goal_str,
+    )
 
 def _build_problem_pddl_content( problem_name: str, domain_name: str, objects_str: str, initialState_str: str, goal_str: str) -> str:
     """Metodo privato per assemblare la stringa del file PDDL del problema."""
@@ -417,9 +427,12 @@ def _run_problem_self_correction(
         if GoalState in revised_results:
             extracted_goal = revised_results[GoalState]
 
+        initial_state_item = extracted_initialState[0] if extracted_initialState else None
+        goal_item = extracted_goal[0] if extracted_goal else None
+
         objects_str = format_objects(extracted_objects)
-        initialState_str = format_initial_state(extracted_initialState)
-        goal_str = format_goal_states(extracted_goal)
+        initialState_str = format_initial_state(initial_state_item) if initial_state_item else ""
+        goal_str = format_goal_states(goal_item) if goal_item else ""
 
         # Ricostruzione e validazione
         problem_pddl_content = _build_problem_pddl_content(
@@ -428,10 +441,10 @@ def _run_problem_self_correction(
 
         problem_details.problem_pddl = problem_pddl_content
         problem_details.objects = extracted_objects
-        problem_details.initial_state = extracted_initialState
-        problem_details.goal_state = extracted_goal
+        problem_details.initial_state = initial_state_item
+        problem_details.goal_state = goal_item
 
-        problem_result = problem_validator.validate_problem(problem_details)
+        problem_result = problem_validator.validate_problem(problem_details, domain_details)
         current_attempt += 1
 
     return problem_result, problem_details, current_attempt
@@ -448,12 +461,20 @@ def run_problem_pipeline(llm, problem_desc: str, problem_name: str, domain_conte
 
     # 1. Generazione iniziale
     try:
-        extracted_objects, extracted_initialState, extracted_goal, objects_str, initialState_str, goal_str = _generate_problem_components(
-            llm, problem_desc, domain_details , prompts, problem_builder
+        (
+            extracted_objects,
+            extracted_initialState,
+            extracted_goal,
+            initial_state_item,
+            goal_item,
+            objects_str,
+            initialState_str,
+            goal_str,
+        ) = _generate_problem_components(
+            llm, problem_desc, domain_details, prompts, problem_builder
         )
     except (ValueError, RuntimeError) as e:
-        return False, "", 0, f"Errore durante l'estrazione dei componenti: {e}" 
-
+        return False, "", 0, f"Errore durante l'estrazione dei componenti: {e}"
 
     # 2. Costruzione e Prima Validazione
     problem_pddl_content = _build_problem_pddl_content(
@@ -462,13 +483,14 @@ def run_problem_pipeline(llm, problem_desc: str, problem_name: str, domain_conte
 
     problem_details = ProblemDetails(
         name=problem_name,
+        domain_name=domain_details.name,
         objects=extracted_objects,
-        initial_state=extracted_initialState,
-        goal_state=extracted_goal,
-        problem_pddl=problem_pddl_content
+        initial_state=initial_state_item,
+        goal_state=goal_item,
+        problem_pddl=problem_pddl_content,
     )
 
-    problem_result = problem_validator.validate_problem(problem_details)
+    problem_result = problem_validator.validate_problem(problem_details, domain_details)
     current_attempt = 1
 
     # 3. Self-Correction (si attiva solo se fallisce)

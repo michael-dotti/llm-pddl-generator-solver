@@ -132,7 +132,7 @@ llm = initialize_llm()
 # ==========================================
 custom_objects_prompt, custom_initial_states_prompt, custom_goal_state_prompt, custom_revise_prompt = get_problem_prompts(
     selected_folder=selected_folder,
-    current_domain_file_name=current_problem_file_name
+    current_problem_file_name=current_problem_file_name
 )
 
 prompts = (custom_objects_prompt, custom_initial_states_prompt, custom_goal_state_prompt, custom_revise_prompt)

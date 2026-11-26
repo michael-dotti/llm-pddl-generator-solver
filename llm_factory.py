@@ -57,9 +57,11 @@ def initialize_llm():
     if response in OPENROUTER_MODELS:
         # Wrapper personalizzato per OpenRouter
         llm = OpenRouterLLMWrapper(model_name=response)
+        provider = "OpenRouter"
     elif response in NVIDIA_MODELS:
         # Wrapper personalizzato per NVIDIA NIM
         llm = NvidiaNimLLMWrapper(model_name=response)
+        provider = "Nvidia"
     elif response in UNIFIED_LLM_PROVIDERS:
         # Modelli nativi l2p (Gemini ed Ollama)
         llm = UnifiedLLM(
@@ -67,8 +69,9 @@ def initialize_llm():
             model=response,
             config_path="my_llm.yaml"
         )
+        provider = UNIFIED_LLM_PROVIDERS[response]
     else:
         termina_programma(f"Hai selezionato un LLM non supportato: {response}\nIl Programma Termina...")
 
-    print(f"\n[OK] LLM inizializzato con successo: {response} (Provider: {UNIFIED_LLM_PROVIDERS[response]})\n")
+    print(f"\n[OK] LLM inizializzato con successo: {response} (Provider: {provider})\n")
     return llm

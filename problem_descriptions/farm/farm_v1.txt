@@ -1,0 +1,6 @@
+Ci sono 2 trattori (trattore1, trattore2), 2 contadini (contadino1, contadino2), 3 campi (campo1, campo2, campo3), 1 aratro (aratro1) e 1 seminatore (seminatore1).
+trattore1 e' adatto sia all'aratura che alla semina, mentre trattore2 e' adatto solo alla semina. All'inizio entrambi i trattori non hanno nessun attrezzo montato (implement-free) e non hanno nessun contadino a bordo (tractor-free).
+aratro1 e seminatore1 sono disponibili all'inizio.
+All'inizio trattore1 e contadino1 si trovano su campo1, mentre trattore2 e contadino2 si trovano su campo2.
+campo1 e' gia' stato arato ma non ancora seminato ne' innaffiato; campo2 e campo3 non sono ancora stati arati, seminati o innaffiati.
+L'obiettivo e' far si' che campo1 sia seminato e innaffiato, campo2 sia arato e seminato, e campo3 sia arato, seminato e innaffiato. Inoltre contadino1 deve trovarsi su campo3 e trattore1 deve trovarsi su campo2 senza avere piu' aratro1 montato.
