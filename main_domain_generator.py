@@ -120,7 +120,7 @@ custom_types_prompt, custom_predicates_prompt, custom_actions_prompt, custom_rev
 prompts = (custom_types_prompt, custom_predicates_prompt, custom_actions_prompt, custom_revise_prompt)
 
 # ============================================================
-# 4. GENERAZIONE INIZIALE DEI COMPONENT DEL FILE DOMAIN.PDDL
+# 4. GENERAZIONE DEL FILE DOMAIN.PDDL
 # ============================================================
 
 # inizio da qui a contare il tempo impiegato dall'LLM per risolvere il problema.
