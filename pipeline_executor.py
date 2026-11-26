@@ -8,6 +8,9 @@ from l2p.utils.pddl_types import ProblemDetails, PDDLObject, InitialState, GoalS
 from l2p.utils.pddl_format import format_types, format_predicates, format_actions 
 from l2p.utils.pddl_format import format_objects, format_initial_state, format_goal_states
 
+# per estrarre da un file domain.pddl i suoi componenti 
+from l2p.utils.pddl_parser import parse_domain_pddl
+
 # Richiamo le mie regole custom per la validazione del dominio (usando @domain_rule)
 import custom_rules.domain_rules
 
@@ -15,7 +18,12 @@ from config import (
     MAX_ATTEMPTS 
 )
 
-def _generate_initial_components(llm, domain_desc: str, prompts: tuple, domain_builder: DomainBuilder):
+
+# ========================================================
+# METODI PER LA GENERAZIONE DI DOMAIN.PDDL
+# ========================================================
+
+def _generate_domain_components(llm, domain_desc: str, prompts: tuple, domain_builder: DomainBuilder):
     """Metodo privato per la generazione iniziale di Tipi, Predicati e Azioni."""
     prompt_types, prompt_predicates, prompt_actions, _ = prompts
 
@@ -75,7 +83,7 @@ def _generate_initial_components(llm, domain_desc: str, prompts: tuple, domain_b
     return extracted_types, extracted_predicates, extracted_actions, types_str, predicates_str, actions_str
 
 
-def _build_pddl_content(domain_name: str, types_str: str, predicates_str: str, actions_str: str) -> str:
+def _build_domain_pddl_content(domain_name: str, types_str: str, predicates_str: str, actions_str: str) -> str:
     """Metodo privato per assemblare la stringa del file PDDL."""
 
     # Requisiti di base sempre presenti
@@ -106,7 +114,7 @@ def _build_pddl_content(domain_name: str, types_str: str, predicates_str: str, a
 )"""
 
 
-def _run_self_correction(llm, domain_desc: str, domain_details: DomainDetails, domain_result, 
+def _run_domain_self_correction(llm, domain_desc: str, domain_details: DomainDetails, domain_result, 
                          extracted_types, extracted_predicates, extracted_actions, 
                          domain_name: str, prompts: tuple, 
                          domain_validator: DomainValidator, feedback_builder: FeedbackBuilder):
@@ -175,7 +183,7 @@ def _run_self_correction(llm, domain_desc: str, domain_details: DomainDetails, d
         actions_str = format_actions(extracted_actions)
 
         # Ricostruzione e validazione
-        domain_pddl_content = _build_pddl_content(domain_name, types_str, predicates_str, actions_str)
+        domain_pddl_content = _build_domain_pddl_content(domain_name, types_str, predicates_str, actions_str)
 
         domain_details.domain_pddl = domain_pddl_content
         domain_details.types = extracted_types
@@ -203,14 +211,14 @@ def run_domain_pipeline(llm, domain_desc: str, domain_name: str, prompts: tuple)
 
     # 1. Generazione iniziale
     try:
-        extracted_types, extracted_predicates, extracted_actions, types_str, predicates_str, actions_str = _generate_initial_components(
+        extracted_types, extracted_predicates, extracted_actions, types_str, predicates_str, actions_str = _generate_domain_components(
             llm, domain_desc, prompts, domain_builder
         )
     except (ValueError, RuntimeError) as e:
         return False, "", 0, f"Errore durante l'estrazione dei componenti: {e}"
 
     # 2. Costruzione e Prima Validazione
-    domain_pddl_content = _build_pddl_content(domain_name, types_str, predicates_str, actions_str)
+    domain_pddl_content = _build_domain_pddl_content(domain_name, types_str, predicates_str, actions_str)
 
     domain_details = DomainDetails(
         name=domain_name,
@@ -226,7 +234,7 @@ def run_domain_pipeline(llm, domain_desc: str, domain_name: str, prompts: tuple)
     # 3. Self-Correction (si attiva solo se fallisce)
     if not domain_result.valid:
         try:
-            domain_result, domain_details, current_attempt = _run_self_correction(
+            domain_result, domain_details, current_attempt = _run_domain_self_correction(
                 llm, domain_desc, domain_details, domain_result,
                 extracted_types, extracted_predicates, extracted_actions,
                 domain_name, prompts, domain_validator, feedback_builder
@@ -239,3 +247,127 @@ def run_domain_pipeline(llm, domain_desc: str, domain_name: str, prompts: tuple)
         return True, domain_details.domain_pddl, current_attempt, ""
     else:
         return False, "", MAX_ATTEMPTS, domain_result.errors
+
+
+
+
+# ========================================================
+# METODI PER LA GENERAZIONE DI PROBLEM.PDDL
+# ========================================================
+
+def _generate_problem_components( llm, problem_desc: str, domain_details: DomainDetails, prompts: tuple, problem_builder: ProblemBuilder):
+    """Metodo privato per la generazione iniziale di Oggetti, Stato Iniziale e Goal."""
+    prompt_objects, prompt_initial_states, prompt_goal_state, _ = prompts
+
+    domain_types = domain_details.types or []
+    domain_predicates = domain_details.predicates or []
+
+    # 1. Oggetti
+    try:
+        objects_results, _ = problem_builder.formalize_component(
+            model=llm,
+            component_class=PDDLObject,
+            description=problem_desc,
+            prompt_template=prompt_objects,
+            types=domain_types,
+        )
+    except (ValueError, RuntimeError) as e:
+        raise RuntimeError(f"Errore durante l'estrazione degli oggetti: {e}")
+
+    extracted_objects = objects_results[PDDLObject]
+    objects_str = format_objects(extracted_objects)
+    print("--- OGGETTI GENERATI ---\n")
+    print(objects_str)
+
+    # 2. Stato iniziale
+    try:
+        initial_state_results, _ = problem_builder.formalize_component(
+            model=llm,
+            component_class=InitialState,
+            description=problem_desc,
+            prompt_template=prompt_initial_states,
+            types=domain_types,
+            predicates=domain_predicates,
+            objects=extracted_objects,
+        )
+    except (ValueError, RuntimeError) as e:
+        raise RuntimeError(f"Errore durante l'estrazione dello stato iniziale: {e}")
+
+    extracted_initialState = initial_state_results[InitialState]
+    initialState_str = format_initial_state(extracted_initialState)
+    print("--- STATO INIZIALE GENERATO ---\n")
+    print(initialState_str)
+
+    # 3. Goal
+    try:
+        goal_results, _ = problem_builder.formalize_component(
+            model=llm,
+            component_class=GoalState,
+            description=problem_desc,
+            prompt_template=prompt_goal_state,
+            types=domain_types,
+            predicates=domain_predicates,
+            objects=extracted_objects,
+            initial_state=extracted_initialState,
+        )
+    except (ValueError, RuntimeError) as e:
+        raise RuntimeError(f"Errore durante l'estrazione del goal: {e}")
+
+    extracted_goal = goal_results[GoalState]
+    goal_str = format_goal_states(extracted_goal)
+    print("\n--- GOAL GENERATO ---")
+    print(goal_str)
+
+    return ( extracted_objects, extracted_initialState, extracted_goal, objects_str, initialState_str, goal_str)
+
+
+def run_problem_pipeline(llm, problem_desc: str, problem_name: str, domain_content: str, prompts: tuple):
+    print("\n\n[INFO] Inizio Generazione dei componenti del Problem PDDL (Object, Stato Iniziale, Goal)")
+
+    domain_details = parse_domain_pddl(domain_content)
+    problem_builder = ProblemBuilder(domain_details=domain_details)
+    feedback_builder = FeedbackBuilder()
+    problem_validator = ProblemValidator(use_defaults=True)
+
+
+    # 1. Generazione iniziale
+    try:
+        extracted_objects, extracted_initialState, extracted_goal, objects_str, initialState_str, goal_str = _generate_problem_components(
+            llm, problem_desc, domain_details , prompts, problem_builder
+        )
+    except (ValueError, RuntimeError) as e:
+        return False, "", 0, f"Errore durante l'estrazione dei componenti: {e}" 
+
+
+    # 2. Costruzione e Prima Validazione
+    problem_pddl_content = _build_problem_pddl_content(
+        problem_name, domain_details.name, objects_str, initialState_str, goal_str
+    )
+
+    problem_details = ProblemDetails(
+        name=problem_name,
+        objects=extracted_objects,
+        initial_state=extracted_initialState,
+        goal_state=extracted_goal,
+        problem_pddl=problem_pddl_content
+    )
+
+    problem_result = problem_validator.validate_problem(problem_details)
+    current_attempt = 1
+
+    # 3. Self-Correction (si attiva solo se fallisce)
+    if not problem_result.valid:
+        try:
+            problem_result, problem_details, current_attempt = _run_problem_self_correction(
+                llm, problem_desc, domain_details, problem_details, problem_result,
+                extracted_objects, extracted_initialState, extracted_goal,
+                problem_name, prompts, problem_validator, feedback_builder
+            )
+        except Exception as e:
+            return False, "", current_attempt, str(e)
+
+    # 4. Restituzione del risultato al Main
+    if problem_result.valid:
+        return True, problem_details.problem_pddl, current_attempt, ""
+    else:
+        return False, "", MAX_ATTEMPTS, problem_result.errors

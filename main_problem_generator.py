@@ -5,8 +5,8 @@ from datetime import datetime
 from dotenv import load_dotenv 
 from pathlib import Path
 
-# Classe per generare i componenti del problema
-from l2p.problem_builder import ProblemBuilder
+# Classe per generare i componenti del problema e validare il file problem.pddl generato
+from pipeline_executor import run_problem_pipeline
 
 
 from llm_factory import initialize_llm
@@ -142,9 +142,14 @@ prompts = (custom_objects_prompt, custom_initial_states_prompt, custom_goal_stat
 # 5. GENERAZIONE DEL PROBLEM.PDDL
 # ============================================================
 start_time = time.time()
-
+success, problem_pddl_content, attempts_used, error_msg = run_problem_pipeline(
+        llm=llm,
+        problem_desc=problem_desc,
+        problem_name=problem_name,
+        domain_content=domain_content,
+        prompts=prompts,
+    )
 end_time = time.time()
-
 
 
 # =======================================================
