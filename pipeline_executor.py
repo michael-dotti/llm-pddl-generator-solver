@@ -321,6 +321,27 @@ def _generate_problem_components( llm, problem_desc: str, domain_details: Domain
     return ( extracted_objects, extracted_initialState, extracted_goal, objects_str, initialState_str, goal_str)
 
 
+def _build_problem_pddl_content( problem_name: str, domain_name: str, objects_str: str, initialState_str: str, goal_str: str) -> str:
+    """Metodo privato per assemblare la stringa del file PDDL del problema."""
+
+
+    return f"""(define (problem {problem_name})
+  (:domain {domain_name})
+
+  (:objects
+{objects_str}
+  )
+
+  (:init
+{initialState_str}
+  )
+
+  (:goal
+{goal_str}
+  )
+)"""
+
+
 def run_problem_pipeline(llm, problem_desc: str, problem_name: str, domain_content: str, prompts: tuple):
     print("\n\n[INFO] Inizio Generazione dei componenti del Problem PDDL (Object, Stato Iniziale, Goal)")
 
