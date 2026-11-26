@@ -342,6 +342,101 @@ def _build_problem_pddl_content( problem_name: str, domain_name: str, objects_st
 )"""
 
 
+def _run_problem_self_correction(
+    llm,
+    problem_desc: str,
+    domain_details: DomainDetails,
+    problem_details: ProblemDetails,
+    problem_result,
+    extracted_objects,
+    extracted_initialState,
+    extracted_goal,
+    problem_name: str,
+    prompts: tuple,
+    problem_validator: ProblemValidator,
+    feedback_builder: FeedbackBuilder,
+):
+    """Metodo privato che gestisce il ciclo di iterazione e self-correction del problema in caso di errori."""
+
+    _, _, _, prompt_revise = prompts
+    current_attempt = 1
+
+    while not problem_result.valid and current_attempt <= MAX_ATTEMPTS:
+        print(f"\n[ERRORE] Validazione semantica PDDL del problema fallita. Avvio Self-Correction {current_attempt}/{MAX_ATTEMPTS}...")
+        print(f"Errori: {problem_result.errors}\n")
+
+        # Fase A: Diagnosi
+        diagnosis_result, _ = feedback_builder.llm_diagnose(
+            model=llm,
+            artifact=problem_details,
+            errors=problem_result.errors,
+            description=problem_desc,
+        )
+
+        # Fase B: Filtraggio intelligente dei target da correggere
+        error_str = str(problem_result.errors).lower()
+        target_classes = []
+
+        if any(keyword in error_str for keyword in ["object", "type"]):
+            target_classes.append(PDDLObject)
+        if any(keyword in error_str for keyword in ["init", "initial", "fact", "predicate", "function"]):
+            target_classes.append(InitialState)
+        if any(keyword in error_str for keyword in ["goal", "condition", "preference"]):
+            target_classes.append(GoalState)
+
+        if not target_classes:
+            target_classes = [PDDLObject, InitialState, GoalState]
+
+        if target_classes == [PDDLObject]:
+            current_artifact = extracted_objects
+        elif target_classes == [InitialState]:
+            current_artifact = extracted_initialState
+        elif target_classes == [GoalState]:
+            current_artifact = extracted_goal
+        else:
+            current_artifact = problem_details
+
+        # Fase C: Revisione dei componenti tramite LLM
+        try:
+            revised_results, _ = feedback_builder.llm_revise(
+                model=llm,
+                artifact=current_artifact,
+                component_class=target_classes,
+                diagnosis=diagnosis_result,
+                description=problem_desc,
+                prompt_template=prompt_revise,
+            )
+        except (ValueError, RuntimeError) as e:
+            raise RuntimeError(f"Errore durante la revisione dei componenti del problema PDDL: {e}")
+
+        # Aggiornamento componenti
+        if PDDLObject in revised_results:
+            extracted_objects = revised_results[PDDLObject]
+        if InitialState in revised_results:
+            extracted_initialState = revised_results[InitialState]
+        if GoalState in revised_results:
+            extracted_goal = revised_results[GoalState]
+
+        objects_str = format_objects(extracted_objects)
+        initialState_str = format_initial_state(extracted_initialState)
+        goal_str = format_goal_states(extracted_goal)
+
+        # Ricostruzione e validazione
+        problem_pddl_content = _build_problem_pddl_content(
+            problem_name, domain_details.name, objects_str, initialState_str, goal_str
+        )
+
+        problem_details.problem_pddl = problem_pddl_content
+        problem_details.objects = extracted_objects
+        problem_details.initial_state = extracted_initialState
+        problem_details.goal_state = extracted_goal
+
+        problem_result = problem_validator.validate_problem(problem_details)
+        current_attempt += 1
+
+    return problem_result, problem_details, current_attempt
+
+
 def run_problem_pipeline(llm, problem_desc: str, problem_name: str, domain_content: str, prompts: tuple):
     print("\n\n[INFO] Inizio Generazione dei componenti del Problem PDDL (Object, Stato Iniziale, Goal)")
 

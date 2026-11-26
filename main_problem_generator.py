@@ -151,7 +151,44 @@ success, problem_pddl_content, attempts_used, error_msg = run_problem_pipeline(
     )
 end_time = time.time()
 
+total_time = end_time - start_time
 
 # =======================================================
 # 6. RISULTATO FINALE
 # =======================================================
+if success:
+    print(f"\n[OK] Problem PDDL valido e pronto! Generato in {attempts_used} iterazione/i.")
+    print("--- ANTEPRIMA DEL FILE PROBLEM.PDDL ---\n")
+    print(problem_pddl_content)
+
+    problems_dir = Path("problems")
+    problems_dir.mkdir(parents=True, exist_ok=True)  # Crea la cartella se non esiste
+
+    # Controllo in base alla scelta del flag iniziale
+    if "Manuale" in naming_mode:
+        problem_filename = questionary.text(
+            "\nInserisci il nome del file PDDL del problema:",
+            default=f"problem_{problem_name}.pddl"
+        ).ask()
+
+        # Controllo di sicurezza sull'estensione
+        if not problem_filename.endswith(".pddl"):
+            problem_filename += ".pddl"
+    else:
+        # Generazione automatica con timestamp (es. problem_20261126_194900.pddl)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        problem_filename = f"problem_{timestamp}.pddl"
+
+    filename_output = problems_dir / problem_filename
+
+    with open(filename_output, "w", encoding="utf-8") as f:
+        f.write(problem_pddl_content)
+
+    print(f"\n[SALVATAGGIO] File scritto correttamente come: '{filename_output}'")
+    print(f"\n[TIMER] Tempo totale di esecuzione: {total_time:.2f} secondi")
+
+else:
+    termina_programma(
+        f"\n[FATAL] L'LLM ha fallito la generazione del problema dopo {MAX_ATTEMPTS} tentativi. Ultimi errori: {error_msg}"
+    )
+
