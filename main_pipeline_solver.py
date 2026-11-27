@@ -1,8 +1,3 @@
-# Fasi sviluppo main_pipeline_solver: 
-# 1) versione 0.1: l'utente può selezionare un domain.pddl e problem.pddl tra quelli esistenti
-# 2) versione 0.5 :l'utente può dare in pasto a un planner i domain.pddl e problem.pddl scelti per risolvere il problema
-# 3) versione 1 : il sistema chiederà se selezionare un domain.pddl e/o problem.pddl esistenti o se generarli al momento
-
 import os
 import re # libreria per cercare, verificare, estrarre o sostituire parti di testo seguendo un pattern
 import tempfile
@@ -110,7 +105,7 @@ def _select_description_file(descriptions_dir: Path, label: str) -> tuple[str, P
     file_path = folder_path / selected_file_name
     description_text = file_path.read_text(encoding="utf-8")
     print(f"\n[OK] Testo del {label} caricato correttamente da: {file_path}\n")
-    return description_text, file_path
+    return description_text, file_path, selected_folder, selected_file_name
 
 
 def _ask_name(prompt: str, default: str, label: str) -> str:
@@ -185,14 +180,16 @@ try:
 
     if want_gen_domain:
         llm = initialize_llm()
-        domain_desc, _ = _select_description_file(domain_descriptions_dir, "dominio")
+        domain_desc, _, domain_folder, domain_file_name = _select_description_file(domain_descriptions_dir, "dominio")
         domain_name = _ask_name("Inserisci il nome del dominio (es. CAMPI):", "CAMPI", "dominio")
 
         ok, domain_content, iters, err = run_domain_pipeline(
             llm=llm,
             domain_desc=domain_desc,
             domain_name=domain_name,
-            prompts=get_domain_prompts(),
+            prompts=get_domain_prompts( 
+                selected_folder=domain_folder,
+                current_domain_file_name=domain_file_name),
         )
         if not ok or not domain_content:
             raise RuntimeError(f"Generazione del dominio fallita dopo {iters} iterazioni: {err}")
@@ -215,7 +212,7 @@ try:
     if want_gen_problem:
         if llm is None:
             llm = initialize_llm()
-        problem_desc, _ = _select_description_file(problem_descriptions_dir, "problema")
+        problem_desc, _, problem_folder, problem_file_name = _select_description_file(problem_descriptions_dir, "problema")
         problem_name = _ask_name("Inserisci il nome del problema (es. farm_v1):", "problem_v1", "problema")
 
         ok, problem_content, iters, err = run_problem_pipeline(
@@ -223,7 +220,10 @@ try:
             problem_desc=problem_desc,
             problem_name=problem_name,
             domain_content=domain_content,
-            prompts=get_problem_prompts(),
+            prompts=get_problem_prompts(
+                selected_folder=problem_folder,
+                current_problem_file_name=problem_file_name
+            ),
         )
         if not ok or not problem_content:
             raise RuntimeError(f"Generazione del problema fallita dopo {iters} iterazioni: {err}")
