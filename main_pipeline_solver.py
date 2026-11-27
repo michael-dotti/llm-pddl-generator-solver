@@ -23,24 +23,27 @@ from config import (
 )
 
 from llm_factory import initialize_llm
-from prompt_manager import get_domain_prompts
-from pipeline_executor import run_domain_pipeline
+from prompt_manager import get_domain_prompts, get_problem_prompts
+from pipeline_executor import run_domain_pipeline, run_problem_pipeline
 
 def _select_pddl_file(target_dir: Path, file_type: str) -> Path:
-    """Funzione helper privata per gestire la scansione e la scelta del file tramite questionary."""
+    """Funzione helper privata per gestire la scansione e scelta del file (domain.pddl o problem.pddl) tramite questionary."""
 
     # verifico che la cartella esista
     if not target_dir.exists() or not target_dir.is_dir():
         raise FileNotFoundError(f"La cartella '{target_dir}' non esiste o non è una directory.")
 
+    # ordino i file
     files = sorted(
         [f.name for f in target_dir.iterdir() if f.is_file() and f.suffix.lower() == '.pddl'],
         key=str.lower
     )
 
+    # controllo che esistano file nella cartella selezionata, altrimenti generò un'eccezione.
     if not files:
         raise ValueError(f"Nessun file .pddl trovato nella cartella '{target_dir.name}'.")
 
+    # seleziono 
     selected = questionary.select(
         f"Seleziona il file di {file_type} PDDL da utilizzare:",
         choices=files
@@ -52,7 +55,88 @@ def _select_pddl_file(target_dir: Path, file_type: str) -> Path:
     return target_dir / selected
 
 
-def extract_plan_actions(raw_output: str, plan_file_path: Path | None = None) -> list[str]:
+def _select_description_file(descriptions_dir: Path, label: str) -> tuple[str, Path]:
+    """Selezione a due passi (sottocartella -> file .txt) e lettura del testo descrittivo (per generare il dominio o il problema)."""
+    
+    # Verifico che la cartella esista (domains_descriptions o problem_description a seconda del valore assunto dal parametro 'description_dir')
+    if not descriptions_dir.exists() or not descriptions_dir.is_dir():
+        raise FileNotFoundError(
+            f"La cartella '{descriptions_dir}' non esiste o non è una directory."
+        )
+
+    folders = sorted(
+        [
+            f.name
+            for f in descriptions_dir.iterdir()
+            if f.is_dir() and not f.name.startswith(".")
+        ],
+        key=str.lower,
+    )
+    if not folders:
+        raise ValueError(
+            f"Nessuna sottocartella trovata in '{descriptions_dir}/'."
+        )
+
+    # seleziono la cartella da esplorare
+    selected_folder = questionary.select(
+        f"Seleziona la cartella del {label} da esplorare:",
+        choices=folders,
+    ).ask()
+    if not selected_folder:
+        raise KeyboardInterrupt(
+            f"Selezione della cartella per {label} interrotta dall'utente."
+        )
+
+    folder_path = descriptions_dir / selected_folder
+    available_files = sorted(
+        [f.name for f in folder_path.glob("*.txt")],
+        key=str.lower,
+    )
+    if not available_files:
+        raise ValueError(
+            f"Nessun file .txt trovato nella cartella '{selected_folder}/'."
+        )
+
+    # seleziono uno dei file contenuti nella cartella
+    selected_file_name = questionary.select(
+        f"Seleziona il file di descrizione per '{selected_folder}':",
+        choices=available_files,
+    ).ask()
+    if not selected_file_name:
+        raise KeyboardInterrupt(
+            f"Selezione del file di descrizione per {label} interrotta dall'utente."
+        )
+
+    file_path = folder_path / selected_file_name
+    description_text = file_path.read_text(encoding="utf-8")
+    print(f"\n[OK] Testo del {label} caricato correttamente da: {file_path}\n")
+    return description_text, file_path
+
+
+def _ask_name(prompt: str, default: str, label: str) -> str:
+    """Chiede all'utente un nome testuale da terminale"""
+    value = questionary.text(
+        prompt,
+        default=default,
+        validate=lambda text: True if text.strip() else f"Il nome del {label} non può essere vuoto.",
+    ).ask()
+    if not value:
+        raise KeyboardInterrupt(f"Inserimento del nome {label} interrotto dall'utente.")
+    return value.strip()
+
+
+def _save_pddl(out_dir: Path, prefix: str, base_name: str, content: str) -> Path:
+    """Salva su disco il contenuto PDDL generato e restituisce il percorso del file creato"""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    clean = re.sub(r"[^a-zA-Z0-9_-]+", "_", base_name.lower()).strip("_") or prefix
+    path = out_dir / f"{prefix}_{clean}.pddl"
+    path.write_text(content, encoding="utf-8")
+    print(f"[SALVATAGGIO] {prefix.capitalize()} salvato in: '{path}'")
+    return path
+
+
+def _extract_plan_actions(raw_output: str, plan_file_path: Path | None = None) -> list[str]:
+    """ """
     # 1. Se il file temporaneo del piano esiste ed è non vuoto, leggiamo da lì
     if plan_file_path and plan_file_path.exists():
         lines = [
@@ -80,20 +164,76 @@ tmp_plan_file.close()
 domains_dir = Path("domains")
 problems_dir = Path("problems")
 
+domain_descriptions_dir = Path("domain_descriptions")
+problem_descriptions_dir = Path("problem_descriptions")
 
 # ==========================================
 # 1. SELEZIONE DEL DOMAIN.PDDL e PROBLEM.PDDL 
 # ==========================================
-print("=== PDDL Solver Pipeline (v0.5) ===\n")
+print("=== PDDL Solver Pipeline (v1.0) ===\n")
 
 try:
-    # 1. selezione del domain.pddl
-    domain_path = _select_pddl_file(domains_dir, "Domain")
-    
-    # 2. selezione del problem.pddl
-    problem_path = _select_pddl_file(problems_dir, "Problem")
 
-except (FileNotFoundError, ValueError, KeyboardInterrupt) as e:
+    # --------------------------------------
+    # 1. GENERAZIONE O CARICAMENTO DOMINIO 
+    # -------------------------------------
+    want_gen_domain = questionary.confirm(
+        "Vuoi generare un nuovo Domain PDDL?", default=False
+    ).ask()
+    if want_gen_domain is None:
+        raise KeyboardInterrupt("Operazione interrotta dall'utente.")
+
+    if want_gen_domain:
+        llm = initialize_llm()
+        domain_desc, _ = _select_description_file(domain_descriptions_dir, "dominio")
+        domain_name = _ask_name("Inserisci il nome del dominio (es. CAMPI):", "CAMPI", "dominio")
+
+        ok, domain_content, iters, err = run_domain_pipeline(
+            llm=llm,
+            domain_desc=domain_desc,
+            domain_name=domain_name,
+            prompts=get_domain_prompts(),
+        )
+        if not ok or not domain_content:
+            raise RuntimeError(f"Generazione del dominio fallita dopo {iters} iterazioni: {err}")
+
+        domain_path = _save_pddl(domains_dir, "domain", domain_name, domain_content)
+    else:
+        domain_path = _select_pddl_file(domains_dir, "Domain")
+        domain_content = domain_path.read_text(encoding="utf-8")
+
+
+    # --------------------------------------
+    # 2. GENERAZIONE O CARICAMENTO PROBLEMA 
+    # -------------------------------------
+    want_gen_problem = questionary.confirm(
+        "Vuoi generare un nuovo Problem PDDL sul dominio attivo?", default=False
+    ).ask()
+    if want_gen_problem is None:
+        raise KeyboardInterrupt("Operazione interrotta dall'utente.")
+
+    if want_gen_problem:
+        if llm is None:
+            llm = initialize_llm()
+        problem_desc, _ = _select_description_file(problem_descriptions_dir, "problema")
+        problem_name = _ask_name("Inserisci il nome del problema (es. farm_v1):", "problem_v1", "problema")
+
+        ok, problem_content, iters, err = run_problem_pipeline(
+            llm=llm,
+            problem_desc=problem_desc,
+            problem_name=problem_name,
+            domain_content=domain_content,
+            prompts=get_problem_prompts(),
+        )
+        if not ok or not problem_content:
+            raise RuntimeError(f"Generazione del problema fallita dopo {iters} iterazioni: {err}")
+
+        problem_path = _save_pddl(problems_dir, "problem", problem_name, problem_content)
+    else:
+        problem_path = _select_pddl_file(problems_dir, "Problem")
+
+except (FileNotFoundError, ValueError, RuntimeError, KeyboardInterrupt) as e:
+    tmp_plan_path.unlink(missing_ok=True) # cancella il file temporaneo se il programma si interrompe a causa di un'eccezione
     termina_programma(str(e))
 
 print("\n--- Configurazione Selezionata ---")
@@ -171,7 +311,7 @@ try:
     if result.is_successful:
         default_plan_path = Path("sas_plan")
         plan_source = default_plan_path if default_plan_path.exists() else tmp_plan_path
-        result.plan = extract_plan_actions(result.raw_output or "", plan_source)
+        result.plan = _extract_plan_actions(result.raw_output or "", plan_source)
 
 except Exception as e:
     termina_programma(f"Errore durante l'esecuzione di Fast Downward: {e}")
