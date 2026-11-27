@@ -1,5 +1,3 @@
-;; descrizione del modo in modo molto dettagliato
-
 Il dominio "Blocksworld" modella un classico ambiente di manipolazione robotica in cui un braccio meccanico deve riorganizzare una serie di blocchi per raggiungere una specifica configurazione finale di impilamento.
 
 Entità e Tipi principali:

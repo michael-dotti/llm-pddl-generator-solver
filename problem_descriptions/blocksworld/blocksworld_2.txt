@@ -1,0 +1,4 @@
+Ci sono 4 blocchi: A, B, C e D.
+All'inizio i blocchi sono impilati in un'unica colonna: il blocco D è appoggiato sul tavolo, il blocco A è sopra il blocco D, il blocco C è sopra il blocco A e il blocco B è in cima sopra il blocco C, senza nessun altro blocco sopra di sé. Il braccio robotico è libero.
+
+L'obiettivo è impilare i 4 blocchi in questo ordine: il blocco B è appoggiato sul tavolo, il blocco A è posizionato sopra il blocco B, il blocco C si trova sopra il blocco A e il blocco D si trova in cima sopra il blocco C.
